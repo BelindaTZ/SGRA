@@ -1,0 +1,53 @@
+<div class="student-dashboard">
+  <div class="welcome">
+    <h2>¡Bienvenido, {{ username }}!</h2>
+    <div class="divider"></div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric-card pending">
+      <div class="metric-icon">📌</div>
+      <div class="metric-value">{{ metrics.pendientes }}</div>
+      <div class="metric-label">Pendientes</div>
+    </div>
+    <div class="metric-card accepted">
+      <div class="metric-icon">✅</div>
+      <div class="metric-value">{{ metrics.aceptadas }}</div>
+      <div class="metric-label">Aceptadas</div>
+    </div>
+    <div class="metric-card upcoming">
+      <div class="metric-icon">📅</div>
+      <div class="metric-value">{{ metrics.proximas }}</div>
+      <div class="metric-label">Próximas Sesiones</div>
+    </div>
+    <div class="metric-card done">
+      <div class="metric-icon">✔️</div>
+      <div class="metric-value">{{ metrics.realizadas }}</div>
+      <div class="metric-label">Realizadas</div>
+    </div>
+  </div>
+
+  <div class="quick-access">
+    <a class="quick-card" routerLink="/dashboard/estudiante/nueva-solicitud">
+      <div class="quick-icon">➕</div>
+      <div>
+        <h3>Nueva Solicitud</h3>
+        <p>Solicita una sesión de refuerzo académico</p>
+      </div>
+    </a>
+    <a class="quick-card" routerLink="/dashboard/estudiante/mis-solicitudes">
+      <div class="quick-icon">📋</div>
+      <div>
+        <h3>Mis Solicitudes</h3>
+        <p>Consulta el estado de tus solicitudes</p>
+      </div>
+    </a>
+    <a class="quick-card" routerLink="/dashboard/estudiante/historial">
+      <div class="quick-icon">🕘</div>
+      <div>
+        <h3>Historial</h3>
+        <p>Revisa tus sesiones anteriores</p>
+      </div>
+    </a>
+  </div>
+</div>

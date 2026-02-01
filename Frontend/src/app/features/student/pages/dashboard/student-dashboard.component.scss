@@ -1,0 +1,92 @@
+.student-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.welcome h2 {
+  color: #0f6a3d;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.divider {
+  height: 2px;
+  background: #f0b233;
+  width: 220px;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.metric-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+}
+
+.metric-icon {
+  font-size: 24px;
+  margin-bottom: 6px;
+}
+
+.metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f6a3d;
+}
+
+.metric-label {
+  font-size: 14px;
+  color: #4f5b62;
+}
+
+.quick-access {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.quick-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px 20px;
+  display: flex;
+  gap: 16px;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.quick-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
+}
+
+.quick-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #e6f4ee;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+}
+
+.quick-card h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.quick-card p {
+  margin: 0;
+  color: #6b7580;
+  font-size: 13px;
+}
