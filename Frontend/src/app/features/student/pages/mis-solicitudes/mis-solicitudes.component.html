@@ -1,0 +1,134 @@
+<div class="solicitudes-page">
+  <div class="page-header">
+    <div>
+      <h2>Mis Solicitudes</h2>
+      <p>Consulta el estado de tus solicitudes de refuerzo académico</p>
+    </div>
+    <a class="btn btn-primary" routerLink="/dashboard/estudiante/nueva-solicitud">+ Nueva Solicitud</a>
+  </div>
+
+  <div class="filters card">
+    <div class="filter-group">
+      <label for="buscar">Buscar</label>
+      <input id="buscar" type="text" placeholder="Buscar" />
+    </div>
+    <div class="filter-group">
+      <label for="estado">Estado</label>
+      <select id="estado">
+        <option value="">Todos</option>
+        <option *ngFor="let status of statusOptions" [value]="status">{{ status }}</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="asignatura">Asignatura</label>
+      <select id="asignatura">
+        <option value="">Todas</option>
+        <option *ngFor="let subject of mockService.subjects" [value]="subject.code">
+          {{ subject.name }}
+        </option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="tipo">Tipo</label>
+      <select id="tipo">
+        <option value="">Todos</option>
+        <option value="Individual">Individual</option>
+        <option value="Grupal">Grupal</option>
+      </select>
+    </div>
+    <button class="btn btn-outline-secondary">Limpiar</button>
+  </div>
+
+  <div class="summary-cards">
+    <div class="summary-card pending">
+      <span>⏳</span>
+      <div>
+        <h3>1</h3>
+        <p>Pendientes</p>
+      </div>
+    </div>
+    <div class="summary-card accepted">
+      <span>👍</span>
+      <div>
+        <h3>1</h3>
+        <p>Aceptadas</p>
+      </div>
+    </div>
+    <div class="summary-card scheduled">
+      <span>📌</span>
+      <div>
+        <h3>0</h3>
+        <p>Programadas</p>
+      </div>
+    </div>
+    <div class="summary-card completed">
+      <span>✅</span>
+      <div>
+        <h3>0</h3>
+        <p>Completadas</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <table class="requests-table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Asignatura</th>
+          <th>Tema</th>
+          <th>Docente</th>
+          <th>Tipo</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let request of requests">
+          <td>
+            <div class="date-cell">
+              <strong>{{ request.date }}</strong>
+              <span>{{ request.time }}</span>
+            </div>
+          </td>
+          <td>
+            <div class="subject-cell">
+              <strong>{{ request.subject.name }}</strong>
+              <span>{{ request.subject.code }}</span>
+            </div>
+          </td>
+          <td>{{ request.topic }}</td>
+          <td>
+            <span class="teacher">{{ request.teacher.name }}</span>
+          </td>
+          <td>
+            <span [class]="getTypeClass(request.type)">{{ request.type }}</span>
+          </td>
+          <td>
+            <span [class]="getStatusClass(request.status)">{{ request.status }}</span>
+          </td>
+          <td>
+            <div class="action-wrapper">
+              <button class="action-btn" type="button">⋮</button>
+              <div class="action-menu">
+                <button type="button">Ver detalle</button>
+                <button type="button">Cancelar</button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="table-footer">
+      <div class="page-info">Items por página: 10</div>
+      <div class="pager">
+        <button type="button">«</button>
+        <button type="button">‹</button>
+        <span>1 - 4 de 4</span>
+        <button type="button">›</button>
+        <button type="button">»</button>
+      </div>
+    </div>
+  </div>
+</div>

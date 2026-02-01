@@ -1,0 +1,167 @@
+<div class="wizard-page">
+  <div *ngIf="showSubmitMessage" class="alert alert-warning">
+    Pendiente de integración
+  </div>
+
+  <div class="wizard-card">
+    <div class="wizard-header">
+      <div class="icon">📝</div>
+      <div>
+        <h2>Solicitud de Refuerzo Académico</h2>
+        <p>Complete el formulario para solicitar una sesión de refuerzo</p>
+      </div>
+    </div>
+
+    <div class="wizard-steps">
+      <div
+        class="step"
+        *ngFor="let step of steps; let index = index"
+        [class.active]="currentStep === index + 1"
+        [class.done]="currentStep > index + 1"
+      >
+        <span>{{ index + 1 }}</span>
+        <small>{{ step }}</small>
+      </div>
+    </div>
+
+    <div class="wizard-content">
+      <ng-container [ngSwitch]="currentStep">
+        <div *ngSwitchCase="1" class="form-grid">
+          <div class="form-group">
+            <label>Asignatura **</label>
+            <select [(ngModel)]="form.subject">
+              <option value="">Seleccionar</option>
+              <option *ngFor="let subject of mockService.subjects" [value]="subject.name">
+                {{ subject.name }} ({{ subject.code }})
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Docente **</label>
+            <select [(ngModel)]="form.teacher">
+              <option value="">Seleccionar</option>
+              <option *ngFor="let teacher of mockService.teachers" [value]="teacher.name">
+                {{ teacher.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div *ngSwitchCase="2" class="form-grid">
+          <div class="form-group full">
+            <label>Tema</label>
+            <input type="text" [(ngModel)]="form.topic" placeholder="Tema a reforzar" />
+          </div>
+          <div class="form-group full">
+            <label>Motivo</label>
+            <textarea [(ngModel)]="form.motive" rows="4" placeholder="Describe tu motivo"></textarea>
+          </div>
+          <div class="form-group full">
+            <label>Adjuntar archivo (opcional)</label>
+            <input type="file" />
+          </div>
+        </div>
+
+        <div *ngSwitchCase="3" class="form-grid">
+          <div class="form-group">
+            <label>Tipo</label>
+            <div class="options">
+              <label>
+                <input type="radio" name="tipo" value="Individual" [(ngModel)]="form.type" (change)="onTypeChange()" />
+                Individual
+              </label>
+              <label>
+                <input type="radio" name="tipo" value="Grupal" [(ngModel)]="form.type" (change)="onTypeChange()" />
+                Grupal
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Modalidad</label>
+            <div class="options">
+              <label>
+                <input type="radio" name="modalidad" value="Presencial" [(ngModel)]="form.modality" />
+                Presencial
+              </label>
+              <label>
+                <input type="radio" name="modalidad" value="Virtual" [(ngModel)]="form.modality" />
+                Virtual
+              </label>
+            </div>
+          </div>
+          <div class="form-group full" *ngIf="form.type === 'Grupal'">
+            <label>Selecciona compañeros</label>
+            <div class="checkbox-grid">
+              <label *ngFor="let name of mockService.companions">
+                <input type="checkbox" (change)="toggleCompanion(name, $event)" />
+                {{ name }}
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div *ngSwitchCase="4" class="form-grid">
+          <div class="form-group full">
+            <label>Selecciona una franja horaria</label>
+            <select [(ngModel)]="form.schedule">
+              <option value="">Seleccionar</option>
+              <option *ngFor="let slot of mockService.timeSlots" [value]="slot">
+                {{ slot }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div *ngSwitchCase="5" class="summary">
+          <div class="summary-card">
+            <h3>Resumen de solicitud</h3>
+            <div class="summary-row">
+              <span>Asignatura:</span>
+              <strong>{{ form.subject || 'Pendiente' }}</strong>
+            </div>
+            <div class="summary-row">
+              <span>Docente:</span>
+              <strong>{{ form.teacher || 'Pendiente' }}</strong>
+            </div>
+            <div class="summary-row">
+              <span>Tema:</span>
+              <strong>{{ form.topic || 'Pendiente' }}</strong>
+            </div>
+            <div class="summary-row">
+              <span>Tipo:</span>
+              <strong>{{ form.type }}</strong>
+            </div>
+            <div class="summary-row">
+              <span>Modalidad:</span>
+              <strong>{{ form.modality }}</strong>
+            </div>
+            <div class="summary-row">
+              <span>Horario:</span>
+              <strong>{{ form.schedule || 'Pendiente' }}</strong>
+            </div>
+            <div class="summary-row" *ngIf="form.companions.length">
+              <span>Compañeros:</span>
+              <strong>{{ form.companions.join(', ') }}</strong>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+
+    <div class="wizard-actions">
+      <button class="btn btn-link" type="button" (click)="cancel()">Cancelar</button>
+      <div class="action-buttons">
+        <button class="btn btn-outline-secondary" type="button" (click)="prevStep()" [disabled]="currentStep === 1">
+          Atrás
+        </button>
+        <button
+          class="btn btn-success"
+          type="button"
+          (click)="currentStep === steps.length ? submit() : nextStep()"
+        >
+          {{ currentStep === steps.length ? 'Enviar' : 'Siguiente' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

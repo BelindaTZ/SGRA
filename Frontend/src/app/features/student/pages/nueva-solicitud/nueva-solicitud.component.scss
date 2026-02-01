@@ -1,0 +1,174 @@
+.wizard-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wizard-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 28px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+
+.wizard-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.wizard-header .icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: #e6f4ee;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+}
+
+.wizard-header h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  color: #1b2d45;
+}
+
+.wizard-header p {
+  margin: 0;
+  color: #6b7580;
+}
+
+.wizard-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f2f5f7;
+  font-size: 12px;
+  color: #6b7580;
+}
+
+.step span {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #cfd8dc;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+}
+
+.step.active {
+  background: #e6f4ee;
+  color: #0f6a3d;
+}
+
+.step.active span {
+  background: #0f6a3d;
+  color: #fff;
+}
+
+.step.done {
+  background: #d8f2e2;
+  color: #0f6a3d;
+}
+
+.step.done span {
+  background: #35a46d;
+  color: #fff;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.form-group.full {
+  grid-column: 1 / -1;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d5dfe4;
+}
+
+.options {
+  display: flex;
+  gap: 16px;
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.summary-card {
+  background: #f7faf9;
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.summary-card h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: #0f6a3d;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .wizard-card {
+    padding: 20px;
+  }
+
+  .wizard-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .action-buttons {
+    justify-content: flex-end;
+  }
+}

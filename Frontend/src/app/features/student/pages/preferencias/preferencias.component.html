@@ -1,0 +1,28 @@
+<div class="preferences-card">
+  <h2>Preferencias</h2>
+  <p>Configura cómo deseas recibir actualizaciones sobre tus solicitudes.</p>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Canal de notificación</label>
+      <select [(ngModel)]="channel">
+        <option>Correo</option>
+        <option>SMS</option>
+        <option>WhatsApp</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Frecuencia</label>
+      <select [(ngModel)]="frequency">
+        <option>Inmediata</option>
+        <option>Diaria</option>
+        <option>Semanal</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="summary">
+    <strong>Resumen:</strong>
+    Recibirás notificaciones por {{ channel }} con frecuencia {{ frequency.toLowerCase() }}.
+  </div>
+</div>
