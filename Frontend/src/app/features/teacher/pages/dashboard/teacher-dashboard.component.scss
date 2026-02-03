@@ -37,7 +37,9 @@
 }
 
 .hero-button-icon {
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .metrics-grid {
@@ -79,12 +81,12 @@
 }
 
 .metric-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  font-size: 18px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #fff;
 }
 
@@ -142,7 +144,14 @@
 }
 
 .panel-icon {
-  font-size: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f3f6ff;
+  color: #2d5bd1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .panel-badge {
@@ -171,13 +180,13 @@
 }
 
 .panel-avatar {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: #eef2f7;
-  display: grid;
-  place-items: center;
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .panel-content strong {
@@ -242,7 +251,14 @@
 }
 
 .empty-icon {
-  font-size: 22px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f3f6ff;
+  color: #2d5bd1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .actions-section h4 {
@@ -273,14 +289,14 @@
 }
 
 .action-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
   background: #f3f6ff;
-  display: grid;
-  place-items: center;
-  font-size: 15px;
   color: #2d5bd1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .indicator-card {
@@ -297,6 +313,17 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.indicator-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f3f6ff;
+  color: #2d5bd1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .indicator-header h4 {
@@ -342,6 +369,17 @@
 .indicator-item--hours small {
   color: #66736c;
   font-size: 11px;
+}
+
+.hero-button-icon i,
+.metric-icon i,
+.panel-icon i,
+.panel-avatar i,
+.empty-icon i,
+.action-icon i,
+.indicator-icon i {
+  font-size: 18px;
+  line-height: 1;
 }
 
 @media (max-width: 768px) {
