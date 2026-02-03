@@ -1,87 +1,62 @@
 package com.LMTZ.backend.services.auth;
 
+import java.sql.Array;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.List;
 import java.util.Locale;
 
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.LMTZ.backend.dtos.AuthLoginRequest;
 import com.LMTZ.backend.dtos.AuthLoginResponse;
-import com.LMTZ.backend.entities.Access;
-import com.LMTZ.backend.entities.UsersRoles;
-import com.LMTZ.backend.repositories.IAccessRepository;
-import com.LMTZ.backend.repositories.IUserRoleRepository;
-
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-    private final IAccessRepository accessRepository;
-    private final IUserRoleRepository userRoleRepository;
-    private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
-    private final JdbcTemplate jdbcTemplate;
-
-    private boolean cuentaActivaColumnPresent = false;
-
-    @PostConstruct
-    void init() {
-        cuentaActivaColumnPresent = checkCuentaActivaColumn();
-    }
+    private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     @Transactional(readOnly = true)
     public AuthLoginResponse login(AuthLoginRequest request) {
-        Access access = accessRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new BadCredentialsException("Credenciales inválidas"));
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("username", request.getUsername())
+                .addValue("password", request.getPassword());
 
-        if (cuentaActivaColumnPresent) {
-            Boolean active = jdbcTemplate.queryForObject(
-                    "select cuenta_activa from sgra.tbaccesos where nombreusuario = ?",
-                    Boolean.class,
-                    access.getUsername());
-            if (active != null && !active) {
-                throw new AccountInactiveException("Cuenta inactiva. Contacta al administrador.");
-            }
-        }
+        List<LoginResult> results = namedParameterJdbcTemplate.query(
+                "select * from sgra.fn_login(:username, :password)",
+                params,
+                new LoginResultMapper());
 
-        if (!passwordMatches(access.getPassword(), request.getPassword())) {
+        if (results.isEmpty()) {
             throw new BadCredentialsException("Credenciales inválidas");
         }
 
-        String role = resolveRole(access.getUser().getUserId());
-        String token = jwtService.generateToken(access.getUsername(), access.getUser().getUserId(), role);
-
-        return new AuthLoginResponse(token, role, access.getUser().getUserId(), access.getUsername());
-    }
-
-    private boolean passwordMatches(String storedPassword, String rawPassword) {
-        if (storedPassword == null || rawPassword == null) {
-            return false;
+        LoginResult result = results.get(0);
+        if (!result.ok()) {
+            if ("Cuenta inactiva".equalsIgnoreCase(result.message())) {
+                throw new AccountInactiveException("Cuenta inactiva");
+            }
+            throw new BadCredentialsException("Credenciales inválidas");
         }
-        if (isBcryptHash(storedPassword)) {
-            return passwordEncoder.matches(rawPassword, storedPassword);
-        }
-        // Temporal: datos de prueba en texto plano; se compara directo hasta migrar a BCrypt.
-        return storedPassword.equals(rawPassword);
+
+        String role = resolveRole(result.roles());
+        String token = jwtService.generateToken(result.nombreusuario(), result.idusuario(), role);
+
+        return new AuthLoginResponse(token, role, result.idusuario(), result.nombreusuario());
     }
 
-    private boolean isBcryptHash(String password) {
-        return password.startsWith("$2a$") || password.startsWith("$2b$") || password.startsWith("$2y$");
-    }
-
-    private String resolveRole(Integer userId) {
-        UsersRoles userRole = userRoleRepository
-                .findFirstByUserId_UserIdAndStateTrueOrderByUserRolesIdAsc(userId)
-                .orElse(null);
-        if (userRole == null || userRole.getRoleId() == null || userRole.getRoleId().getRole() == null) {
+    private String resolveRole(String[] roles) {
+        if (roles == null || roles.length == 0) {
             return "STUDENT";
         }
-        return normalizeRole(userRole.getRoleId().getRole());
+        return normalizeRole(roles[0]);
     }
 
     private String normalizeRole(String role) {
@@ -101,17 +76,25 @@ public class AuthService {
         return role.trim().toUpperCase(Locale.ROOT);
     }
 
-    private boolean checkCuentaActivaColumn() {
-        try {
-            Integer count = jdbcTemplate.queryForObject(
-                    "select count(*) from information_schema.columns where table_schema = ? and table_name = ? and column_name = ?",
-                    Integer.class,
-                    "sgra",
-                    "tbaccesos",
-                    "cuenta_activa");
-            return count != null && count > 0;
-        } catch (Exception ex) {
-            return false;
+    private record LoginResult(
+            boolean ok,
+            String message,
+            Integer idusuario,
+            String nombreusuario,
+            String[] roles) {
+    }
+
+    private static class LoginResultMapper implements RowMapper<LoginResult> {
+        @Override
+        public LoginResult mapRow(ResultSet rs, int rowNum) throws SQLException {
+            Array rolesArray = rs.getArray("roles");
+            String[] roles = rolesArray == null ? null : (String[]) rolesArray.getArray();
+            return new LoginResult(
+                    rs.getBoolean("ok"),
+                    rs.getString("message"),
+                    rs.getInt("idusuario"),
+                    rs.getString("nombreusuario"),
+                    roles);
         }
     }
 }

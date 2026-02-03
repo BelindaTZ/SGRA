@@ -11,7 +11,14 @@ Este frontend Vue implementa el flujo de **login funcional** y redirección al *
 2. Configura el backend (opcional si usas el mismo origen):
    - Puedes definir un `VITE_API_URL` en un archivo `.env` dentro de `FrontendVueExpo/`:
      ```env
+     # Web local
      VITE_API_URL=http://localhost:8080
+
+     # Android emulador
+     # VITE_API_URL=http://10.0.2.2:8080
+
+     # Teléfono físico (reemplaza con tu IP LAN)
+     # VITE_API_URL=http://<IP_LAN>:8080
      ```
    - Si sirves el frontend desde el mismo host/puerto del backend o tienes proxy, no necesitas `VITE_API_URL`.
 3. Ejecuta el frontend:
@@ -40,73 +47,93 @@ curl -X POST "http://localhost:8080/api/auth/login" \
 ---
 
 # SQL recomendado (PostgreSQL)
-> **Nota:** No es obligatorio ejecutar estos scripts. Se documentan para soportar el login y mantener compatibilidad con contraseñas en texto plano o `pgcrypto`.
+> **Nota:** Estos scripts se ejecutan manualmente antes de correr la app. La validación de credenciales debe realizarse **solo** a través de la función `sgra.fn_login` (sin queries directas a tablas desde el backend).
 
-## A) Vista `v_auth_usuario_rol`
+## 1) Extensión requerida
 ```sql
-CREATE OR REPLACE VIEW sgra.v_auth_usuario_rol AS
-SELECT
-  u.idusuario,
-  u.nombres,
-  u.apellidos,
-  u.correo,
-  u.telefono,
-  a.nombreusuario,
-  a.cuenta_activa,
-  r.rol,
-  d.iddocente
-FROM sgra.tbusuarios u
-JOIN sgra.tbaccesos a ON a.idusuario = u.idusuario
-LEFT JOIN sgra.tbusuariosroles ur ON ur.idusuario = u.idusuario AND ur.estado = true
-LEFT JOIN sgra.tbroles r ON r.idrol = ur.idrol AND r.estado = true
-LEFT JOIN sgra.tbdocentes d ON d.idusuario = u.idusuario AND d.estado = true;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 ```
 
-## B) Función `fn_login(p_username text, p_password text)`
+## 2) Función `fn_login(p_username text, p_password text)`
+> La función valida usuario, cuenta activa y contraseña usando `crypt`. No usa SQL dinámico.
 ```sql
 CREATE OR REPLACE FUNCTION sgra.fn_login(p_username text, p_password text)
 RETURNS TABLE (
-  idusuario integer,
+  ok boolean,
+  message text,
+  idusuario int,
+  nombreusuario text,
   nombres text,
   apellidos text,
   correo text,
-  telefono text,
-  nombreusuario text,
-  cuenta_activa boolean,
-  rol text,
-  iddocente integer
+  roles text[]
 )
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  v_idusuario int;
+  v_cuenta_activa boolean;
 BEGIN
+  SELECT a.idusuario, a.cuenta_activa
+  INTO v_idusuario, v_cuenta_activa
+  FROM sgra.tbaccesos a
+  WHERE a.nombreusuario = p_username;
+
+  IF v_idusuario IS NULL THEN
+    RETURN QUERY SELECT false, 'Credenciales inválidas', NULL, NULL, NULL, NULL, NULL, NULL;
+    RETURN;
+  END IF;
+
+  IF v_cuenta_activa IS NOT TRUE THEN
+    RETURN QUERY SELECT false, 'Cuenta inactiva', v_idusuario, p_username, NULL, NULL, NULL, NULL;
+    RETURN;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM sgra.tbaccesos a
+    WHERE a.nombreusuario = p_username
+      AND a.contrasena = crypt(p_password, a.contrasena)
+  ) THEN
+    RETURN QUERY SELECT false, 'Credenciales inválidas', v_idusuario, p_username, NULL, NULL, NULL, NULL;
+    RETURN;
+  END IF;
+
   RETURN QUERY
   SELECT
-    v.idusuario,
-    v.nombres,
-    v.apellidos,
-    v.correo,
-    v.telefono,
-    v.nombreusuario,
-    v.cuenta_activa,
-    v.rol,
-    v.iddocente
-  FROM sgra.v_auth_usuario_rol v
-  JOIN sgra.tbaccesos a ON a.idusuario = v.idusuario
-  WHERE v.nombreusuario = p_username
-    AND v.cuenta_activa = true
-    AND (
-      a.contrasena = p_password
-      OR (a.contrasena IS NOT NULL AND crypt(p_password, a.contrasena) = a.contrasena)
-    );
+    true,
+    'OK',
+    u.idusuario,
+    a.nombreusuario,
+    u.nombres,
+    u.apellidos,
+    u.correo,
+    ARRAY(
+      SELECT r.rol
+      FROM sgra.tbusuariosroles ur
+      JOIN sgra.tbroles r ON r.idrol = ur.idrol
+      WHERE ur.idusuario = u.idusuario
+        AND ur.estado = true
+        AND r.estado = true
+    ) AS roles
+  FROM sgra.tbusuarios u
+  JOIN sgra.tbaccesos a ON a.idusuario = u.idusuario
+  WHERE a.nombreusuario = p_username;
 END;
 $$;
 ```
 
-### Hash de clave (pgcrypto) para pruebas
+## 3) Hash de clave (pgcrypto) para pruebas
 ```sql
 UPDATE sgra.tbaccesos
 SET contrasena = crypt('1234', gen_salt('bf'))
-WHERE nombreusuario = 'USUARIO';
+WHERE nombreusuario = 'docente1';
 ```
 
-> Si el backend ya maneja login sin función, esta `fn_login` se considera una recomendación compatible con el frontend.
+---
+
+## Troubleshooting
+- **Android emulator:** usar `http://10.0.2.2:8080` como `VITE_API_URL`.
+- **Dispositivo físico:** usar `http://<IP_LAN>:8080` y verificar que el backend esté accesible en la red.
+- **CORS:** si aparece error de CORS, revisa la configuración de CORS en el backend.
+- **Backend apagado o URL incorrecta:** se mostrará un error de conexión.

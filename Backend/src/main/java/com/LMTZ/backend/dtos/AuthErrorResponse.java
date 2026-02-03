@@ -7,4 +7,5 @@ import lombok.Data;
 @AllArgsConstructor
 public class AuthErrorResponse {
     private String message;
+    private String errorId;
 }

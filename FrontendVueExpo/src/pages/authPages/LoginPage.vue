@@ -37,13 +37,34 @@ const onSubmit = async () => {
     await router.push(redirectByRole[response.role] ?? '/dashboard/en-construccion');
   } catch (err) {
     if (axios.isAxiosError(err)) {
-      if (err.response?.status === 401) {
-        error.value = 'Usuario o contraseña incorrectos';
-      } else if (err.response?.status === 403) {
-        error.value = (err.response?.data as { message?: string })?.message ??
-          'Cuenta inactiva. Contacta al administrador.';
+      console.error('Login error:', err);
+      if (!err.response) {
+        const errorCode = err.code ?? '';
+        if (errorCode === 'ECONNREFUSED' || err.message?.includes('ECONNREFUSED')) {
+          error.value =
+            'No se pudo conectar con el servidor (ECONNREFUSED). Revisa URL/puerto y backend encendido.';
+        } else if (errorCode === 'ECONNABORTED') {
+          error.value = 'Tiempo de espera agotado. Revisa red y dirección del servidor.';
+        } else if (err.message?.includes('Network Error')) {
+          error.value = 'Bloqueado por CORS. Revisa configuración del backend.';
+        } else {
+          error.value = 'No se pudo conectar con el servidor. Inténtalo más tarde.';
+        }
+        return;
+      }
+
+      const status = err.response.status;
+      const responseData = err.response.data as { message?: string; errorId?: string };
+      const errorId = responseData?.errorId ? ` (errorId: ${responseData.errorId})` : '';
+
+      if (status === 401) {
+        error.value = 'Credenciales inválidas.';
+      } else if (status === 403) {
+        error.value = 'Cuenta inactiva.';
+      } else if (status === 500 || status === 503) {
+        error.value = `Servicio no disponible. Intenta más tarde.${errorId}`;
       } else {
-        error.value = 'No se pudo conectar con el servidor. Inténtalo más tarde.';
+        error.value = responseData?.message ?? 'No se pudo conectar con el servidor. Inténtalo más tarde.';
       }
     } else {
       error.value = 'No se pudo conectar con el servidor. Inténtalo más tarde.';
@@ -94,7 +115,7 @@ const onSubmit = async () => {
           {{ message }}
         </div>
 
-        <button class="btn btn-primary w-100" type="submit" :disabled="loading">
+        <button class="btn btn-success w-100" type="submit" :disabled="loading">
           <span v-if="loading" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
           Ingresar
         </button>
