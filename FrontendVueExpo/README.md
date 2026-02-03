@@ -133,7 +133,24 @@ WHERE nombreusuario = 'docente1';
 ---
 
 ## Troubleshooting
+- **Proxy en Vite (sin VITE_API_URL):** se usa proxy `/api` a `http://localhost:8080` en `vite.config.js`.
 - **Android emulator:** usar `http://10.0.2.2:8080` como `VITE_API_URL`.
 - **Dispositivo físico:** usar `http://<IP_LAN>:8080` y verificar que el backend esté accesible en la red.
-- **CORS:** si aparece error de CORS, revisa la configuración de CORS en el backend.
+- **CORS:** si aparece error de CORS, revisa `app.cors.allowed-origins` en el backend.
 - **Backend apagado o URL incorrecta:** se mostrará un error de conexión.
+
+## Prueba rápida (respuesta esperada)
+```bash
+curl -X POST "http://localhost:8080/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"USUARIO","password":"CLAVE"}'
+```
+Respuesta esperada (HTTP 200):
+```json
+{
+  "token": "...",
+  "role": "TEACHER",
+  "userId": 1,
+  "username": "USUARIO"
+}
+```

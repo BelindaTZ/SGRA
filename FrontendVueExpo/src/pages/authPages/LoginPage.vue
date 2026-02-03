@@ -40,15 +40,18 @@ const onSubmit = async () => {
       console.error('Login error:', err);
       if (!err.response) {
         const errorCode = err.code ?? '';
-        if (errorCode === 'ECONNREFUSED' || err.message?.includes('ECONNREFUSED')) {
-          error.value =
-            'No se pudo conectar con el servidor (ECONNREFUSED). Revisa URL/puerto y backend encendido.';
+        if (
+          errorCode === 'ECONNREFUSED' ||
+          err.message?.includes('ECONNREFUSED') ||
+          err.message?.includes('ERR_CONNECTION_REFUSED')
+        ) {
+          error.value = 'Servidor no disponible (backend apagado o URL incorrecta).';
         } else if (errorCode === 'ECONNABORTED') {
-          error.value = 'Tiempo de espera agotado. Revisa red y dirección del servidor.';
+          error.value = 'Servidor no disponible (backend apagado o URL incorrecta).';
         } else if (err.message?.includes('Network Error')) {
-          error.value = 'Bloqueado por CORS. Revisa configuración del backend.';
+          error.value = 'Bloqueo CORS (origen no permitido). Revisa allowed-origins.';
         } else {
-          error.value = 'No se pudo conectar con el servidor. Inténtalo más tarde.';
+          error.value = 'Servidor no disponible (backend apagado o URL incorrecta).';
         }
         return;
       }
@@ -60,11 +63,11 @@ const onSubmit = async () => {
       if (status === 401) {
         error.value = 'Credenciales inválidas.';
       } else if (status === 403) {
-        error.value = 'Cuenta inactiva.';
-      } else if (status === 500 || status === 503) {
-        error.value = `Servicio no disponible. Intenta más tarde.${errorId}`;
+        error.value = 'No autorizado.';
+      } else if (status >= 500) {
+        error.value = `Error interno del servidor${errorId}.`;
       } else {
-        error.value = responseData?.message ?? 'No se pudo conectar con el servidor. Inténtalo más tarde.';
+        error.value = responseData?.message ?? 'Servidor no disponible (backend apagado o URL incorrecta).';
       }
     } else {
       error.value = 'No se pudo conectar con el servidor. Inténtalo más tarde.';
