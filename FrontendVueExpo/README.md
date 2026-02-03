@@ -41,7 +41,7 @@ Este frontend Vue implementa el flujo de **login funcional** y redirección al *
 ```bash
 curl -X POST "http://localhost:8080/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"username":"USUARIO","password":"CLAVE"}'
+  -d '{"username":"docente1","password":"1234"}'
 ```
 
 ---
@@ -49,14 +49,9 @@ curl -X POST "http://localhost:8080/api/auth/login" \
 # SQL recomendado (PostgreSQL)
 > **Nota:** Estos scripts se ejecutan manualmente antes de correr la app. La validación de credenciales debe realizarse **solo** a través de la función `sgra.fn_login` (sin queries directas a tablas desde el backend).
 
-## 1) Extensión requerida
 ```sql
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
-```
 
-## 2) Función `fn_login(p_username text, p_password text)`
-> La función valida usuario, cuenta activa y contraseña usando `crypt`. No usa SQL dinámico.
-```sql
 CREATE OR REPLACE FUNCTION sgra.fn_login(p_username text, p_password text)
 RETURNS TABLE (
   ok boolean,
@@ -75,17 +70,35 @@ DECLARE
   v_cuenta_activa boolean;
 BEGIN
   SELECT a.idusuario, a.cuenta_activa
-  INTO v_idusuario, v_cuenta_activa
+    INTO v_idusuario, v_cuenta_activa
   FROM sgra.tbaccesos a
   WHERE a.nombreusuario = p_username;
 
   IF v_idusuario IS NULL THEN
-    RETURN QUERY SELECT false, 'Credenciales inválidas', NULL, NULL, NULL, NULL, NULL, NULL;
+    RETURN QUERY
+    SELECT
+      false,
+      'Credenciales inválidas'::text,
+      NULL::int,
+      NULL::text,
+      NULL::text,
+      NULL::text,
+      NULL::text,
+      NULL::text[];
     RETURN;
   END IF;
 
   IF v_cuenta_activa IS NOT TRUE THEN
-    RETURN QUERY SELECT false, 'Cuenta inactiva', v_idusuario, p_username, NULL, NULL, NULL, NULL;
+    RETURN QUERY
+    SELECT
+      false,
+      'Cuenta inactiva'::text,
+      v_idusuario,
+      p_username::text,
+      NULL::text,
+      NULL::text,
+      NULL::text,
+      NULL::text[];
     RETURN;
   END IF;
 
@@ -95,36 +108,46 @@ BEGIN
     WHERE a.nombreusuario = p_username
       AND a.contrasena = crypt(p_password, a.contrasena)
   ) THEN
-    RETURN QUERY SELECT false, 'Credenciales inválidas', v_idusuario, p_username, NULL, NULL, NULL, NULL;
+    RETURN QUERY
+    SELECT
+      false,
+      'Credenciales inválidas'::text,
+      v_idusuario,
+      p_username::text,
+      NULL::text,
+      NULL::text,
+      NULL::text,
+      NULL::text[];
     RETURN;
   END IF;
 
   RETURN QUERY
   SELECT
     true,
-    'OK',
+    'OK'::text,
     u.idusuario,
-    a.nombreusuario,
-    u.nombres,
-    u.apellidos,
-    u.correo,
-    ARRAY(
-      SELECT r.rol
-      FROM sgra.tbusuariosroles ur
-      JOIN sgra.tbroles r ON r.idrol = ur.idrol
-      WHERE ur.idusuario = u.idusuario
-        AND ur.estado = true
-        AND r.estado = true
+    a.nombreusuario::text,
+    u.nombres::text,
+    u.apellidos::text,
+    u.correo::text,
+    COALESCE(
+      ARRAY(
+        SELECT r.rol::text
+        FROM sgra.tbusuariosroles ur
+        JOIN sgra.tbroles r ON r.idrol = ur.idrol
+        WHERE ur.idusuario = u.idusuario
+          AND ur.estado = true
+          AND r.estado = true
+      ),
+      ARRAY[]::text[]
     ) AS roles
   FROM sgra.tbusuarios u
   JOIN sgra.tbaccesos a ON a.idusuario = u.idusuario
   WHERE a.nombreusuario = p_username;
+
 END;
 $$;
-```
 
-## 3) Hash de clave (pgcrypto) para pruebas
-```sql
 UPDATE sgra.tbaccesos
 SET contrasena = crypt('1234', gen_salt('bf'))
 WHERE nombreusuario = 'docente1';
@@ -143,7 +166,7 @@ WHERE nombreusuario = 'docente1';
 ```bash
 curl -X POST "http://localhost:8080/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"username":"USUARIO","password":"CLAVE"}'
+  -d '{"username":"docente1","password":"1234"}'
 ```
 Respuesta esperada (HTTP 200):
 ```json
@@ -151,6 +174,6 @@ Respuesta esperada (HTTP 200):
   "token": "...",
   "role": "TEACHER",
   "userId": 1,
-  "username": "USUARIO"
+  "username": "docente1"
 }
 ```

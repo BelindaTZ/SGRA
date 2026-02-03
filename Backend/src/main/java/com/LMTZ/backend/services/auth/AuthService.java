@@ -30,7 +30,7 @@ public class AuthService {
                 .addValue("password", request.getPassword());
 
         List<LoginResult> results = namedParameterJdbcTemplate.query(
-                "select * from sgra.fn_login(:username, :password)",
+                "select * from sgra.fn_login(cast(:username as text), cast(:password as text))",
                 params,
                 new LoginResultMapper());
 
