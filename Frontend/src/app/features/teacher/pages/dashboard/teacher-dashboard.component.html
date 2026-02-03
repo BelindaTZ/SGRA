@@ -4,14 +4,14 @@
     <p>Panel de gestión de refuerzos académicos</p>
   </div>
   <a class="hero-button" routerLink="/dashboard/docente/disponibilidad">
-    <span class="hero-button-icon">⏱</span>
+    <span class="hero-button-icon"><i class="bi bi-clock"></i></span>
     Gestionar Disponibilidad
   </a>
 </section>
 
 <section class="metrics-grid">
   <article class="metric-card">
-    <div class="metric-icon metric-icon--warning">📥</div>
+    <div class="metric-icon metric-icon--warning"><i class="bi bi-inbox"></i></div>
     <div class="metric-info">
       <h3>{{ metrics.pendientes }}</h3>
       <span>Solicitudes Pendientes</span>
@@ -19,7 +19,7 @@
     </div>
   </article>
   <article class="metric-card">
-    <div class="metric-icon metric-icon--purple">📅</div>
+    <div class="metric-icon metric-icon--purple"><i class="bi bi-calendar-event"></i></div>
     <div class="metric-info">
       <h3>{{ metrics.programadas }}</h3>
       <span>Sesiones Programadas</span>
@@ -27,7 +27,7 @@
     </div>
   </article>
   <article class="metric-card">
-    <div class="metric-icon metric-icon--green">✅</div>
+    <div class="metric-icon metric-icon--green"><i class="bi bi-check-circle"></i></div>
     <div class="metric-info">
       <h3>{{ metrics.completadas }}</h3>
       <span>Sesiones Completadas</span>
@@ -35,7 +35,7 @@
     </div>
   </article>
   <article class="metric-card">
-    <div class="metric-icon metric-icon--blue">🎓</div>
+    <div class="metric-icon metric-icon--blue"><i class="bi bi-mortarboard"></i></div>
     <div class="metric-info">
       <h3>{{ metrics.atendidos }}</h3>
       <span>Estudiantes Atendidos</span>
@@ -48,14 +48,14 @@
   <div class="panel-card">
     <div class="panel-header">
       <div class="panel-title">
-        <span class="panel-icon">🔔</span>
+        <span class="panel-icon"><i class="bi bi-bell"></i></span>
         <h4>Solicitudes Pendientes de Revisión</h4>
       </div>
       <span class="panel-badge" *ngIf="pendingRequests.length">{{ pendingRequests.length }} nuevas</span>
     </div>
     <div class="panel-list" *ngIf="pendingRequests.length; else noRequests">
       <div class="panel-item" *ngFor="let request of pendingRequests">
-        <div class="panel-avatar">👤</div>
+        <div class="panel-avatar"><i class="bi bi-person"></i></div>
         <div class="panel-content">
           <strong>{{ request.studentName }}</strong>
           <small>{{ request.subject }} • {{ request.topic }}</small>
@@ -75,13 +75,13 @@
   <div class="panel-card">
     <div class="panel-header">
       <div class="panel-title">
-        <span class="panel-icon">🗓</span>
+        <span class="panel-icon"><i class="bi bi-calendar3"></i></span>
         <h4>Próximas Sesiones</h4>
       </div>
     </div>
     <div *ngIf="upcomingSessions.length; else noSessions">
       <div class="panel-item" *ngFor="let session of upcomingSessions">
-        <div class="panel-avatar">📘</div>
+        <div class="panel-avatar"><i class="bi bi-book"></i></div>
         <div class="panel-content">
           <strong>{{ session.subject }}</strong>
           <small>{{ session.dateLabel }} • {{ session.student }}</small>
@@ -91,7 +91,7 @@
     </div>
     <ng-template #noSessions>
       <div class="empty-state empty-state--center">
-        <div class="empty-icon">📅</div>
+        <div class="empty-icon"><i class="bi bi-calendar2-event"></i></div>
         No tienes sesiones programadas
       </div>
     </ng-template>
@@ -103,19 +103,19 @@
   <h4>Acciones Rápidas</h4>
   <div class="actions-grid">
     <a class="action-card" routerLink="/dashboard/docente/solicitudes">
-      <span class="action-icon">📋</span>
+      <span class="action-icon"><i class="bi bi-clipboard-check"></i></span>
       <span>Revisar Solicitudes</span>
     </a>
     <a class="action-card" routerLink="/dashboard/docente/disponibilidad">
-      <span class="action-icon">⏰</span>
+      <span class="action-icon"><i class="bi bi-alarm"></i></span>
       <span>Mi Disponibilidad</span>
     </a>
     <a class="action-card" routerLink="/dashboard/docente/sesiones">
-      <span class="action-icon">👥</span>
+      <span class="action-icon"><i class="bi bi-people"></i></span>
       <span>Agrupar Sesiones</span>
     </a>
     <a class="action-card" routerLink="/dashboard/docente/reportes">
-      <span class="action-icon">📊</span>
+      <span class="action-icon"><i class="bi bi-bar-chart"></i></span>
       <span>Mis Reportes</span>
     </a>
   </div>
@@ -123,7 +123,7 @@
 
 <section class="indicator-card">
   <div class="indicator-header">
-    <span class="indicator-icon">📈</span>
+    <span class="indicator-icon"><i class="bi bi-graph-up"></i></span>
     <h4>Indicadores del Período</h4>
   </div>
   <div class="indicator-grid">
