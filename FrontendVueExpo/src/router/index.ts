@@ -1,6 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import LoginPage from '../pages/authPages/LoginPage.vue';
+import TeacherLayout from '../layouts/TeacherLayout.vue';
 import TeacherDashboard from '../pages/teacherPages/TeacherDashboard.vue';
+import AvailabilityPage from '../pages/teacherPages/AvailabilityPage.vue';
+import RequestsPage from '../pages/teacherPages/RequestsPage.vue';
+import SessionsPage from '../pages/teacherPages/SessionsPage.vue';
+import ReportsPage from '../pages/teacherPages/ReportsPage.vue';
+import PreferencesPage from '../pages/teacherPages/PreferencesPage.vue';
 import StudentHome from '../pages/studentPages/StudentHome.vue';
 import WorkingPage from '../pages/sharedPages/WorkingPage.vue';
 import NotFoundPage from '../pages/sharedPages/NotFoundPage.vue';
@@ -11,8 +17,16 @@ const routes = [
   { path: '/login', component: LoginPage },
   {
     path: '/dashboard/docente',
-    component: TeacherDashboard,
+    component: TeacherLayout,
     meta: { requiresAuth: true, roles: ['TEACHER'] },
+    children: [
+      { path: '', component: TeacherDashboard },
+      { path: 'solicitudes', component: RequestsPage },
+      { path: 'disponibilidad', component: AvailabilityPage },
+      { path: 'sesiones', component: SessionsPage },
+      { path: 'reportes', component: ReportsPage },
+      { path: 'preferencias', component: PreferencesPage },
+    ],
   },
   {
     path: '/dashboard/estudiante',
