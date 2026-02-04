@@ -32,6 +32,7 @@ public class DocenteDisponibilidadService {
     private static final String FN_PERIODO = "fn_periodo_resuelto";
     private static final String FN_LIST = "fn_docente_disponibilidad_list";
     private static final String FN_FRANJAS = "fn_franjas_horarias_list";
+    private static final String FN_RESERVAS = "fn_docente_reservas_list";
     private static final String SP_UPSERT = "sp_docente_disponibilidad_upsert";
 
     private final JdbcTemplate jdbcTemplate;
@@ -44,25 +45,8 @@ public class DocenteDisponibilidadService {
                 + SCHEMA_NAME + "." + FN_LIST + "(?, ?)";
         String franjasSql = "SELECT idfranjahoraria, horainicio, horariofin FROM "
                 + SCHEMA_NAME + "." + FN_FRANJAS + "()";
-        String reservasSql = "SELECT hc.dia AS diasemana, hc.idfranjahorario "
-                + "FROM " + SCHEMA_NAME + ".tbhorarioclases hc "
-                + "JOIN " + SCHEMA_NAME + ".tbclases c ON c.idclase = hc.idclases "
-                + "JOIN " + SCHEMA_NAME + ".tbdocentes d ON d.iddocente = c.iddocente "
-                + "WHERE d.idusuario = ? "
-                + "AND d.estado = true "
-                + "AND c.estado = true "
-                + "AND hc.estado = true "
-                + "AND hc.idperiodo = ? "
-                + "UNION "
-                + "SELECT s.diasolicitado AS diasemana, s.idfranjahoraria AS idfranjahorario "
-                + "FROM " + SCHEMA_NAME + ".tbsolicitudesrefuerzos s "
-                + "JOIN " + SCHEMA_NAME + ".tbdetallesrefuerzosprogramadas dr "
-                + "ON dr.idsolicitudrefuerzo = s.idsolicitudrefuerzo "
-                + "JOIN " + SCHEMA_NAME + ".tbdocentes d2 ON d2.iddocente = s.iddocente "
-                + "WHERE d2.idusuario = ? "
-                + "AND d2.estado = true "
-                + "AND dr.estado = true "
-                + "AND s.idperiodo = ?";
+        String reservasSql = "SELECT diasemana, idfranjahorario FROM "
+                + SCHEMA_NAME + "." + FN_RESERVAS + "(?, ?)";
 
         logger.info("Ejecutando FN {} para periodoId={}", FN_PERIODO, periodoId);
         Map<String, Object> periodoRow = jdbcTemplate.queryForMap(periodoSql, periodoId);
@@ -86,15 +70,13 @@ public class DocenteDisponibilidadService {
 
         List<AvailabilitySlotResponse> reservas = List.of();
         try {
-            logger.info("Buscando reservas para userId={} periodoId={}", userId, resolvedPeriodoId);
+            logger.info("Ejecutando FN {} para userId={} periodoId={}", FN_RESERVAS, userId, resolvedPeriodoId);
             reservas = jdbcTemplate.query(
                     reservasSql,
                     reservaRowMapper(),
                     userId,
-                    resolvedPeriodoId,
-                    userId,
                     resolvedPeriodoId);
-            logger.info("Reservas retornó {} registros", reservas != null ? reservas.size() : 0);
+            logger.info("FN {} retornó {} registros", FN_RESERVAS, reservas != null ? reservas.size() : 0);
         } catch (Exception ex) {
             logger.warn("No se pudo obtener reservas para docente. Continuando sin reservas.", ex);
         }
