@@ -111,7 +111,7 @@ public class DocenteDisponibilidadService {
                     slot.getDiaSemana(),
                     slot.getFranjaId(),
                     estado);
-            Boolean ok = jdbcTemplate.execute(con -> {
+            Boolean ok = jdbcTemplate.execute((org.springframework.jdbc.core.CallableStatementCreator) con -> {
                 var cs = con.prepareCall(upsertSql);
                 cs.setInt(1, userId);
                 if (periodoId != null) {
