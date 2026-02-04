@@ -4,7 +4,7 @@ Este módulo agrega endpoints y procedimientos almacenados para gestionar la dis
 
 ## Procedimientos almacenados
 
-> **Esquema**: se asume `sgra` por `currentSchema=sgra` en `application.properties`. Ajusta el prefijo si trabajas en otro esquema.
+> **Esquema**: los SPs se crean en `sgra`, pero las tablas del DDL están en `public`. Para evitar ambigüedad se referencian como `public.tabla`.
 
 ### 1) Listar franjas horarias
 
@@ -17,7 +17,7 @@ BEGIN
     SELECT idfranjahoraria,
            horainicio,
            horariofin
-      FROM tbfranjashorarias
+      FROM public.tbfranjashorarias
      WHERE estado = true
      ORDER BY horainicio;
 END;
@@ -41,7 +41,7 @@ DECLARE
 BEGIN
   SELECT iddocente
     INTO v_iddocente
-    FROM tbdocentes
+    FROM public.tbdocentes
    WHERE idusuario = p_idusuario
      AND estado = true;
 
@@ -52,12 +52,12 @@ BEGIN
   IF p_idperiodo IS NOT NULL THEN
     SELECT idperiodo, periodo
       INTO o_idperiodo, o_periodo
-      FROM tbperiodos
+      FROM public.tbperiodos
      WHERE idperiodo = p_idperiodo;
   ELSE
     SELECT idperiodo, periodo
       INTO o_idperiodo, o_periodo
-      FROM tbperiodos
+      FROM public.tbperiodos
      WHERE estado = true
      ORDER BY fechainicio DESC
      LIMIT 1;
@@ -71,7 +71,7 @@ BEGIN
     SELECT diasemana,
            idfranjahorario,
            estado
-      FROM tbdisponibilidaddocente
+      FROM public.tbdisponibilidaddocente
      WHERE iddocente = v_iddocente
        AND idperiodo = o_idperiodo
      ORDER BY diasemana, idfranjahorario;
@@ -103,7 +103,7 @@ BEGIN
 
   SELECT iddocente
     INTO v_iddocente
-    FROM tbdocentes
+    FROM public.tbdocentes
    WHERE idusuario = p_idusuario
      AND estado = true;
 
@@ -117,7 +117,7 @@ BEGIN
   ELSE
     SELECT idperiodo
       INTO v_idperiodo
-      FROM tbperiodos
+      FROM public.tbperiodos
      WHERE estado = true
      ORDER BY fechainicio DESC
      LIMIT 1;
@@ -130,21 +130,21 @@ BEGIN
 
   SELECT COUNT(1)
     INTO v_exist
-    FROM tbdisponibilidaddocente
+    FROM public.tbdisponibilidaddocente
    WHERE iddocente = v_iddocente
      AND idperiodo = v_idperiodo
      AND diasemana = p_diasemana
      AND idfranjahorario = p_idfranjahorario;
 
   IF v_exist > 0 THEN
-    UPDATE tbdisponibilidaddocente
+    UPDATE public.tbdisponibilidaddocente
        SET estado = p_estado
      WHERE iddocente = v_iddocente
        AND idperiodo = v_idperiodo
        AND diasemana = p_diasemana
        AND idfranjahorario = p_idfranjahorario;
   ELSE
-    INSERT INTO tbdisponibilidaddocente (
+    INSERT INTO public.tbdisponibilidaddocente (
       diasemana,
       estado,
       idperiodo,
@@ -209,23 +209,46 @@ $$;
 { "message": "Disponibilidad actualizada", "updated": 2 }
 ```
 
-### Desactivar disponibilidad (soft delete)
-
-**DELETE** `/api/docente/disponibilidad`
-
-**Request**
-
-```json
-{
-  "periodoId": 3,
-  "slots": [
-    { "diaSemana": 1, "franjaId": 1, "status": "NO_DISPONIBLE" }
-  ]
-}
-```
-
 ## Notas de seguridad
 
-- Todas las llamadas a BD usan `CallableStatement` con parámetros posicionados, evitando SQL concatenado.
+- Todas las llamadas a BD usan `JdbcTemplate`/`SimpleJdbcCall` con parámetros, evitando SQL concatenado.
 - Los `SELECT` y `UPDATE/INSERT` dentro de SPs usan parámetros fuertemente tipados.
 - El `userId` proviene del JWT ya emitido por el backend y se valida antes de ejecutar los SPs.
+
+## Smoke test manual
+
+1) Guardar disponibilidad:
+
+```bash
+curl -X PUT "http://localhost:8080/api/docente/disponibilidad" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "periodoId": 1,
+    "slots": [
+      { "diaSemana": 1, "franjaId": 1, "status": "DISPONIBLE" },
+      { "diaSemana": 2, "franjaId": 2, "status": "DISPONIBLE" }
+    ]
+  }'
+```
+
+2) Consultar disponibilidad:
+
+```bash
+curl -X GET "http://localhost:8080/api/docente/disponibilidad?periodoId=1" \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
+3) Verificar en BD:
+
+```sql
+SELECT *
+  FROM public.tbdisponibilidaddocente
+ WHERE idperiodo = 1
+ ORDER BY iddocente, diasemana, idfranjahorario;
+```
+
+## Diagnóstico previo (por qué se veía vacío)
+
+- El backend anterior leía `userId` desde el header y no desde el `SecurityContext`, lo que podía fallar si el filtro JWT no estaba aportando ese dato al contexto.
+- Los SPs estaban definidos sin prefijo de esquema y la conexión usa `currentSchema=sgra`; si las tablas están en `public`, las consultas en los SPs no encontraban datos. Por eso se ajustaron a `public.*`.

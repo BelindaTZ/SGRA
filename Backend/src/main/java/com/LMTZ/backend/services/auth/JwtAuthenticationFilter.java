@@ -41,6 +41,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         role != null
                                 ? Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role))
                                 : Collections.emptyList());
+                Object userId = claims.get("userId");
+                if (userId != null) {
+                    authentication.setDetails(userId);
+                } else {
+                    authentication.setDetails(claims);
+                }
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (Exception ex) {
                 SecurityContextHolder.clearContext();
