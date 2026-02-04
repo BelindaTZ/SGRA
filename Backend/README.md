@@ -109,6 +109,8 @@ $$;
 
 ### 4) Insertar/actualizar disponibilidad
 
+> Esta rutina hace **UPDATE** si ya existe el registro de disponibilidad y **INSERT** si no existe.
+
 ```sql
 CREATE OR REPLACE PROCEDURE sgra.sp_docente_disponibilidad_upsert(
   IN p_idusuario INTEGER,

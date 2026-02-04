@@ -484,7 +484,7 @@ onMounted(() => {
 .grid-header,
 .grid-row {
   display: grid;
-  grid-template-columns: 80px 70px repeat(5, 1fr);
+  grid-template-columns: 80px repeat(7, minmax(64px, 1fr));
   gap: 8px;
 }
 
