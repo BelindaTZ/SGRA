@@ -6,80 +6,108 @@ Este módulo agrega endpoints y procedimientos almacenados para gestionar la dis
 
 > **Esquema**: los SPs se crean en `sgra` y las consultas se hacen contra `sgra.*`. Si tus tablas están en otro esquema, ajusta el `search_path` o agrega el prefijo correspondiente.
 
-### 1) Listar franjas horarias
+### 1) Listar franjas horarias (sin cursor)
 
 ```sql
-CREATE OR REPLACE PROCEDURE sgra.sp_franjas_horarias_list(OUT o_cursor REFCURSOR)
+CREATE OR REPLACE FUNCTION sgra.fn_franjas_horarias_list()
+RETURNS TABLE (
+  idfranjahoraria INTEGER,
+  horainicio TIME,
+  horariofin TIME
+)
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  OPEN o_cursor FOR
-    SELECT idfranjahoraria,
-           horainicio,
-           horariofin
-      FROM sgra.tbfranjashorarias
-     WHERE estado = true
-     ORDER BY horainicio;
+  RETURN QUERY
+    SELECT f.idfranjahoraria,
+           f.horainicio,
+           f.horariofin
+      FROM sgra.tbfranjashorarias f
+     WHERE f.estado = true
+     ORDER BY f.horainicio;
 END;
 $$;
 ```
 
-### 2) Obtener disponibilidad del docente
+### 2) Periodo resuelto (activo o seleccionado)
 
 ```sql
-CREATE OR REPLACE PROCEDURE sgra.sp_docente_disponibilidad_list(
-  IN p_idusuario INTEGER,
-  IN p_idperiodo INTEGER,
-  OUT o_idperiodo INTEGER,
-  OUT o_periodo VARCHAR,
-  OUT o_cursor REFCURSOR
+CREATE OR REPLACE FUNCTION sgra.fn_periodo_resuelto(
+  p_idperiodo INTEGER
+)
+RETURNS TABLE (
+  idperiodo INTEGER,
+  periodo VARCHAR
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF p_idperiodo IS NOT NULL THEN
+    RETURN QUERY
+      SELECT p.idperiodo, p.periodo
+        FROM sgra.tbperiodos p
+       WHERE p.idperiodo = p_idperiodo;
+  ELSE
+    RETURN QUERY
+      SELECT p.idperiodo, p.periodo
+        FROM sgra.tbperiodos p
+       WHERE p.estado = true
+       ORDER BY p.fechainicio DESC
+       LIMIT 1;
+  END IF;
+END;
+$$;
+```
+
+### 3) Obtener disponibilidad del docente (sin cursor)
+
+```sql
+CREATE OR REPLACE FUNCTION sgra.fn_docente_disponibilidad_list(
+  p_idusuario INTEGER,
+  p_idperiodo INTEGER
+)
+RETURNS TABLE (
+  diasemana SMALLINT,
+  idfranjahorario INTEGER,
+  estado BOOLEAN
 )
 LANGUAGE plpgsql
 AS $$
 DECLARE
   v_iddocente INTEGER;
+  v_idperiodo INTEGER;
 BEGIN
-  SELECT iddocente
+  SELECT d.iddocente
     INTO v_iddocente
-    FROM sgra.tbdocentes
-   WHERE idusuario = p_idusuario
-     AND estado = true;
+    FROM sgra.tbdocentes d
+   WHERE d.idusuario = p_idusuario
+     AND d.estado = true;
 
   IF v_iddocente IS NULL THEN
     RAISE EXCEPTION 'Docente no encontrado para el usuario %', p_idusuario;
   END IF;
 
-  IF p_idperiodo IS NOT NULL THEN
-    SELECT idperiodo, periodo
-      INTO o_idperiodo, o_periodo
-      FROM sgra.tbperiodos
-     WHERE idperiodo = p_idperiodo;
-  ELSE
-    SELECT idperiodo, periodo
-      INTO o_idperiodo, o_periodo
-      FROM sgra.tbperiodos
-     WHERE estado = true
-     ORDER BY fechainicio DESC
-     LIMIT 1;
-  END IF;
+  SELECT pr.idperiodo
+    INTO v_idperiodo
+    FROM sgra.fn_periodo_resuelto(p_idperiodo) pr;
 
-  IF o_idperiodo IS NULL THEN
+  IF v_idperiodo IS NULL THEN
     RAISE EXCEPTION 'No existe período activo o válido';
   END IF;
 
-  OPEN o_cursor FOR
-    SELECT diasemana,
-           idfranjahorario,
-           estado
-      FROM sgra.tbdisponibilidaddocente
-     WHERE iddocente = v_iddocente
-       AND idperiodo = o_idperiodo
-     ORDER BY diasemana, idfranjahorario;
+  RETURN QUERY
+    SELECT dd.diasemana,
+           dd.idfranjahorario,
+           dd.estado
+      FROM sgra.tbdisponibilidaddocente dd
+     WHERE dd.iddocente = v_iddocente
+       AND dd.idperiodo = v_idperiodo
+     ORDER BY dd.diasemana, dd.idfranjahorario;
 END;
 $$;
 ```
 
-### 3) Insertar/actualizar disponibilidad
+### 4) Insertar/actualizar disponibilidad
 
 ```sql
 CREATE OR REPLACE PROCEDURE sgra.sp_docente_disponibilidad_upsert(
@@ -101,27 +129,20 @@ BEGIN
   o_ok := false;
   o_message := NULL;
 
-  SELECT iddocente
+  SELECT d.iddocente
     INTO v_iddocente
-    FROM sgra.tbdocentes
-   WHERE idusuario = p_idusuario
-     AND estado = true;
+    FROM sgra.tbdocentes d
+   WHERE d.idusuario = p_idusuario
+     AND d.estado = true;
 
   IF v_iddocente IS NULL THEN
     o_message := 'Docente no encontrado para el usuario';
     RETURN;
   END IF;
 
-  IF p_idperiodo IS NOT NULL THEN
-    v_idperiodo := p_idperiodo;
-  ELSE
-    SELECT idperiodo
-      INTO v_idperiodo
-      FROM sgra.tbperiodos
-     WHERE estado = true
-     ORDER BY fechainicio DESC
-     LIMIT 1;
-  END IF;
+  SELECT pr.idperiodo
+    INTO v_idperiodo
+    FROM sgra.fn_periodo_resuelto(p_idperiodo) pr;
 
   IF v_idperiodo IS NULL THEN
     o_message := 'No existe período activo o válido';
@@ -130,11 +151,11 @@ BEGIN
 
   SELECT COUNT(1)
     INTO v_exist
-    FROM sgra.tbdisponibilidaddocente
-   WHERE iddocente = v_iddocente
-     AND idperiodo = v_idperiodo
-     AND diasemana = p_diasemana
-     AND idfranjahorario = p_idfranjahorario;
+    FROM sgra.tbdisponibilidaddocente dd
+   WHERE dd.iddocente = v_iddocente
+     AND dd.idperiodo = v_idperiodo
+     AND dd.diasemana = p_diasemana
+     AND dd.idfranjahorario = p_idfranjahorario;
 
   IF v_exist > 0 THEN
     UPDATE sgra.tbdisponibilidaddocente
@@ -166,13 +187,16 @@ $$;
 
 > **Convención de días:** en el frontend se usa `1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb`. Ajusta si tu data histórica usa otra codificación.
 
-### 4) Reservas por horarios de clase / sesiones programadas
+### 5) Reservas por horarios de clase / sesiones programadas (sin cursor)
 
 ```sql
-CREATE OR REPLACE PROCEDURE sgra.sp_docente_reservas_list(
-  IN p_idusuario INTEGER,
-  IN p_idperiodo INTEGER,
-  OUT o_cursor REFCURSOR
+CREATE OR REPLACE FUNCTION sgra.fn_docente_reservas_list(
+  p_idusuario INTEGER,
+  p_idperiodo INTEGER
+)
+RETURNS TABLE (
+  diasemana SMALLINT,
+  idfranjahorario INTEGER
 )
 LANGUAGE plpgsql
 AS $$
@@ -180,32 +204,25 @@ DECLARE
   v_iddocente INTEGER;
   v_idperiodo INTEGER;
 BEGIN
-  SELECT iddocente
+  SELECT d.iddocente
     INTO v_iddocente
-    FROM sgra.tbdocentes
-   WHERE idusuario = p_idusuario
-     AND estado = true;
+    FROM sgra.tbdocentes d
+   WHERE d.idusuario = p_idusuario
+     AND d.estado = true;
 
   IF v_iddocente IS NULL THEN
     RAISE EXCEPTION 'Docente no encontrado para el usuario %', p_idusuario;
   END IF;
 
-  IF p_idperiodo IS NOT NULL THEN
-    v_idperiodo := p_idperiodo;
-  ELSE
-    SELECT idperiodo
-      INTO v_idperiodo
-      FROM sgra.tbperiodos
-     WHERE estado = true
-     ORDER BY fechainicio DESC
-     LIMIT 1;
-  END IF;
+  SELECT pr.idperiodo
+    INTO v_idperiodo
+    FROM sgra.fn_periodo_resuelto(p_idperiodo) pr;
 
   IF v_idperiodo IS NULL THEN
     RAISE EXCEPTION 'No existe período activo o válido';
   END IF;
 
-  OPEN o_cursor FOR
+  RETURN QUERY
     SELECT hc.dia AS diasemana,
            hc.idfranjahorario
       FROM sgra.tbhorarioclases hc

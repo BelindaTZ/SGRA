@@ -2,7 +2,6 @@ package com.LMTZ.backend.services;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Types;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -13,9 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.SqlOutParameter;
-import org.springframework.jdbc.core.SqlParameter;
-import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,9 +29,10 @@ public class DocenteDisponibilidadService {
     private static final Logger logger = LoggerFactory.getLogger(DocenteDisponibilidadService.class);
 
     private static final String SCHEMA_NAME = "sgra";
-    private static final String SP_LIST = "sp_docente_disponibilidad_list";
-    private static final String SP_FRANJAS = "sp_franjas_horarias_list";
-    private static final String SP_RESERVAS = "sp_docente_reservas_list";
+    private static final String FN_PERIODO = "fn_periodo_resuelto";
+    private static final String FN_LIST = "fn_docente_disponibilidad_list";
+    private static final String FN_FRANJAS = "fn_franjas_horarias_list";
+    private static final String FN_RESERVAS = "fn_docente_reservas_list";
     private static final String SP_UPSERT = "sp_docente_disponibilidad_upsert";
 
     private final JdbcTemplate jdbcTemplate;
@@ -43,49 +40,38 @@ public class DocenteDisponibilidadService {
 
     @Transactional(readOnly = true)
     public AvailabilityResponse obtenerDisponibilidad(Integer userId, Integer periodoId) {
-        SimpleJdbcCall listCall = new SimpleJdbcCall(jdbcTemplate)
-                .withSchemaName(SCHEMA_NAME)
-                .withProcedureName(SP_LIST)
-                .declareParameters(
-                        new SqlParameter("p_idusuario", Types.INTEGER),
-                        new SqlParameter("p_idperiodo", Types.INTEGER),
-                        new SqlOutParameter("o_idperiodo", Types.INTEGER),
-                        new SqlOutParameter("o_periodo", Types.VARCHAR),
-                        new SqlOutParameter("o_cursor", Types.REF_CURSOR, disponibilidadRowMapper()));
+        String periodoSql = "SELECT idperiodo, periodo FROM " + SCHEMA_NAME + "." + FN_PERIODO + "(?)";
+        String disponibilidadSql = "SELECT diasemana, idfranjahorario, estado FROM "
+                + SCHEMA_NAME + "." + FN_LIST + "(?, ?)";
+        String franjasSql = "SELECT idfranjahoraria, horainicio, horariofin FROM "
+                + SCHEMA_NAME + "." + FN_FRANJAS + "()";
+        String reservasSql = "SELECT diasemana, idfranjahorario FROM "
+                + SCHEMA_NAME + "." + FN_RESERVAS + "(?, ?)";
 
-        SimpleJdbcCall franjasCall = new SimpleJdbcCall(jdbcTemplate)
-                .withSchemaName(SCHEMA_NAME)
-                .withProcedureName(SP_FRANJAS)
-                .declareParameters(
-                        new SqlOutParameter("o_cursor", Types.REF_CURSOR, franjaRowMapper()));
+        logger.info("Ejecutando FN {} para periodoId={}", FN_PERIODO, periodoId);
+        Map<String, Object> periodoRow = jdbcTemplate.queryForMap(periodoSql, periodoId);
+        Integer resolvedPeriodoId = (Integer) periodoRow.get("idperiodo");
+        String periodoNombre = (String) periodoRow.get("periodo");
 
-        SimpleJdbcCall reservasCall = new SimpleJdbcCall(jdbcTemplate)
-                .withSchemaName(SCHEMA_NAME)
-                .withProcedureName(SP_RESERVAS)
-                .declareParameters(
-                        new SqlParameter("p_idusuario", Types.INTEGER),
-                        new SqlParameter("p_idperiodo", Types.INTEGER),
-                        new SqlOutParameter("o_cursor", Types.REF_CURSOR, reservaRowMapper()));
+        logger.info("Ejecutando FN {} para userId={} periodoId={}", FN_LIST, userId, resolvedPeriodoId);
+        List<AvailabilitySlotResponse> slots = jdbcTemplate.query(
+                disponibilidadSql,
+                disponibilidadRowMapper(),
+                userId,
+                resolvedPeriodoId);
+        logger.info("FN {} retornó {} registros", FN_LIST, slots != null ? slots.size() : 0);
 
-        logger.info("Ejecutando SP {} para userId={} periodoId={}", SP_LIST, userId, periodoId);
-        Map<String, Object> listResult = listCall.execute(userId, periodoId);
-        Integer resolvedPeriodoId = (Integer) listResult.get("o_idperiodo");
-        String periodoNombre = (String) listResult.get("o_periodo");
-        @SuppressWarnings("unchecked")
-        List<AvailabilitySlotResponse> slots = (List<AvailabilitySlotResponse>) listResult.get("o_cursor");
-        logger.info("SP {} retornó {} registros", SP_LIST, slots != null ? slots.size() : 0);
+        logger.info("Ejecutando FN {}", FN_FRANJAS);
+        List<FranjaHorarioDto> franjas = jdbcTemplate.query(franjasSql, franjaRowMapper());
+        logger.info("FN {} retornó {} registros", FN_FRANJAS, franjas != null ? franjas.size() : 0);
 
-        logger.info("Ejecutando SP {}", SP_FRANJAS);
-        Map<String, Object> franjaResult = franjasCall.execute();
-        @SuppressWarnings("unchecked")
-        List<FranjaHorarioDto> franjas = (List<FranjaHorarioDto>) franjaResult.get("o_cursor");
-        logger.info("SP {} retornó {} registros", SP_FRANJAS, franjas != null ? franjas.size() : 0);
-
-        logger.info("Ejecutando SP {} para userId={} periodoId={}", SP_RESERVAS, userId, periodoId);
-        Map<String, Object> reservasResult = reservasCall.execute(userId, periodoId);
-        @SuppressWarnings("unchecked")
-        List<AvailabilitySlotResponse> reservas = (List<AvailabilitySlotResponse>) reservasResult.get("o_cursor");
-        logger.info("SP {} retornó {} registros", SP_RESERVAS, reservas != null ? reservas.size() : 0);
+        logger.info("Ejecutando FN {} para userId={} periodoId={}", FN_RESERVAS, userId, resolvedPeriodoId);
+        List<AvailabilitySlotResponse> reservas = jdbcTemplate.query(
+                reservasSql,
+                reservaRowMapper(),
+                userId,
+                resolvedPeriodoId);
+        logger.info("FN {} retornó {} registros", FN_RESERVAS, reservas != null ? reservas.size() : 0);
 
         List<AvailabilitySlotResponse> mergedSlots = mergeDisponibilidadConReservas(slots, reservas);
 
@@ -103,17 +89,7 @@ public class DocenteDisponibilidadService {
             return new AvailabilityUpdateResponse("No se enviaron cambios", 0);
         }
 
-        SimpleJdbcCall upsertCall = new SimpleJdbcCall(jdbcTemplate)
-                .withSchemaName(SCHEMA_NAME)
-                .withProcedureName(SP_UPSERT)
-                .declareParameters(
-                        new SqlParameter("p_idusuario", Types.INTEGER),
-                        new SqlParameter("p_idperiodo", Types.INTEGER),
-                        new SqlParameter("p_diasemana", Types.SMALLINT),
-                        new SqlParameter("p_idfranjahorario", Types.INTEGER),
-                        new SqlParameter("p_estado", Types.BOOLEAN),
-                        new SqlOutParameter("o_ok", Types.BOOLEAN),
-                        new SqlOutParameter("o_message", Types.VARCHAR));
+        String upsertSql = "CALL " + SCHEMA_NAME + "." + SP_UPSERT + "(?, ?, ?, ?, ?, ?, ?)";
 
         int updated = 0;
         for (AvailabilitySlotRequest slot : slots) {
@@ -135,18 +111,32 @@ public class DocenteDisponibilidadService {
                     slot.getDiaSemana(),
                     slot.getFranjaId(),
                     estado);
+            Boolean ok = jdbcTemplate.execute(con -> {
+                var cs = con.prepareCall(upsertSql);
+                cs.setInt(1, userId);
+                if (periodoId != null) {
+                    cs.setInt(2, periodoId);
+                } else {
+                    cs.setNull(2, java.sql.Types.INTEGER);
+                }
+                cs.setInt(3, slot.getDiaSemana());
+                cs.setInt(4, slot.getFranjaId());
+                cs.setBoolean(5, estado);
+                cs.registerOutParameter(6, java.sql.Types.BOOLEAN);
+                cs.registerOutParameter(7, java.sql.Types.VARCHAR);
+                return cs;
+            }, cs -> {
+                cs.execute();
+                Boolean okValue = cs.getBoolean(6);
+                String message = cs.getString(7);
+                if (okValue == null || !okValue) {
+                    throw new RuntimeException(message != null ? message : "No se pudo actualizar disponibilidad");
+                }
+                return okValue;
+            });
 
-            Map<String, Object> result = upsertCall.execute(
-                    userId,
-                    periodoId,
-                    slot.getDiaSemana(),
-                    slot.getFranjaId(),
-                    estado);
-
-            Boolean ok = (Boolean) result.get("o_ok");
-            String message = (String) result.get("o_message");
             if (ok == null || !ok) {
-                throw new RuntimeException(message != null ? message : "No se pudo actualizar disponibilidad");
+                throw new RuntimeException("No se pudo actualizar disponibilidad");
             }
             updated += 1;
         }
