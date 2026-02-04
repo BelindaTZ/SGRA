@@ -98,6 +98,8 @@ public class DocenteDisponibilidadService {
         }
 
         String upsertSql = "CALL " + SCHEMA_NAME + "." + SP_UPSERT + "(?, ?, ?, ?, ?, ?, ?)";
+        Integer resolvedPeriodoId = resolvePeriodoId(periodoId);
+        logger.info("Periodo resuelto para upsert: {}", resolvedPeriodoId);
 
         int updated = 0;
         for (AvailabilitySlotRequest slot : slots) {
@@ -115,15 +117,15 @@ public class DocenteDisponibilidadService {
                     "Ejecutando SP {} para userId={} periodoId={} dia={} franja={} estado={}",
                     SP_UPSERT,
                     userId,
-                    periodoId,
+                    resolvedPeriodoId,
                     slot.getDiaSemana(),
                     slot.getFranjaId(),
                     estado);
             Boolean ok = jdbcTemplate.execute((org.springframework.jdbc.core.CallableStatementCreator) con -> {
                 var cs = con.prepareCall(upsertSql);
                 cs.setInt(1, userId);
-                if (periodoId != null) {
-                    cs.setInt(2, periodoId);
+                if (resolvedPeriodoId != null) {
+                    cs.setInt(2, resolvedPeriodoId);
                 } else {
                     cs.setNull(2, java.sql.Types.INTEGER);
                 }
@@ -201,5 +203,11 @@ public class DocenteDisponibilidadService {
 
     private String formatTime(LocalTime time) {
         return time != null ? time.format(timeFormatter) : null;
+    }
+
+    private Integer resolvePeriodoId(Integer periodoId) {
+        String periodoSql = "SELECT idperiodo FROM " + SCHEMA_NAME + "." + FN_PERIODO + "(?)";
+        Map<String, Object> periodoRow = jdbcTemplate.queryForMap(periodoSql, periodoId);
+        return (Integer) periodoRow.get("idperiodo");
     }
 }
