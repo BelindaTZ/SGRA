@@ -1,18 +1,17 @@
 package com.LMTZ.backend.services;
 
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.LinkedHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class DocenteDisponibilidadService {
+
     private static final Logger logger = LoggerFactory.getLogger(DocenteDisponibilidadService.class);
 
     private static final String SCHEMA_NAME = "sgra";
@@ -34,11 +34,13 @@ public class DocenteDisponibilidadService {
     private static final String FN_LIST = "fn_docente_disponibilidad_list";
     private static final String FN_FRANJAS = "fn_franjas_horarias_list";
     private static final String FN_RESERVAS = "fn_docente_reservas_list";
-    private static final String SP_UPSERT = "sp_docente_disponibilidad_upsert";
+
+    private static final String FN_UPSERT = "fn_docente_disponibilidad_upsert";
 
     private final JdbcTemplate jdbcTemplate;
     private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
 
+    // GET DISPONIBILIDAD
     @Transactional(readOnly = true)
     public AvailabilityResponse obtenerDisponibilidad(Integer userId, Integer periodoId) {
         String periodoSql = "SELECT idperiodo, periodo FROM " + SCHEMA_NAME + "." + FN_PERIODO + "(?)";
@@ -87,6 +89,7 @@ public class DocenteDisponibilidadService {
         return new AvailabilityResponse(resolvedPeriodoId, periodoNombre, franjas, mergedSlots);
     }
 
+    // PUT DISPONIBILIDAD
     @Transactional
     public AvailabilityUpdateResponse actualizarDisponibilidad(
             Integer userId,
@@ -94,6 +97,7 @@ public class DocenteDisponibilidadService {
             List<AvailabilitySlotRequest> slots,
             boolean marcarDisponible,
             boolean forzarDesactivar) {
+
         if (slots == null || slots.isEmpty()) {
             return new AvailabilityUpdateResponse("No se enviaron cambios", 0);
         }
@@ -102,81 +106,94 @@ public class DocenteDisponibilidadService {
         logger.info("Periodo resuelto para upsert: {}", resolvedPeriodoId);
 
         int updated = 0;
-        String upsertCallSql = "{ call " + SCHEMA_NAME + "." + SP_UPSERT + "(?, ?, ?, ?, ?, ?, ?) }";
+
+        // FUNCIÓN
+        String upsertFnSql = "SELECT ok, message FROM " + SCHEMA_NAME + "." + FN_UPSERT + "(?, ?, ?, ?, ?)";
+
         for (AvailabilitySlotRequest slot : slots) {
             if (slot == null || slot.getDiaSemana() == null || slot.getFranjaId() == null) {
                 continue;
             }
+
             String status = slot.getStatus() == null ? "" : slot.getStatus().trim().toUpperCase();
             if ("SESION".equals(status)) {
                 continue;
             }
+
             boolean estado = forzarDesactivar
                     ? false
                     : (marcarDisponible || "DISPONIBLE".equals(status));
-            logger.info(
-                    "Ejecutando SP {} para userId={} periodoId={} dia={} franja={} estado={}",
-                    SP_UPSERT,
-                    userId,
-                    resolvedPeriodoId,
-                    slot.getDiaSemana(),
-                    slot.getFranjaId(),
-                    estado);
+
+            short diaSemana = (short) slot.getDiaSemana().intValue();
+
+            logger.info("Ejecutando FN {} para userId={} periodoId={} dia={} franja={} estado={}",
+                    FN_UPSERT, userId, resolvedPeriodoId, diaSemana, slot.getFranjaId(), estado);
+
             try {
-                Boolean ok = jdbcTemplate.execute((org.springframework.jdbc.core.CallableStatementCreator) con -> {
-                    var cs = con.prepareCall(upsertCallSql);
-                    cs.setInt(1, userId);
-                    if (resolvedPeriodoId != null) {
-                        cs.setInt(2, resolvedPeriodoId);
-                    } else {
-                        cs.setNull(2, java.sql.Types.INTEGER);
-                    }
-                    cs.setInt(3, slot.getDiaSemana());
-                    cs.setInt(4, slot.getFranjaId());
-                    cs.setBoolean(5, estado);
-                    cs.registerOutParameter(6, java.sql.Types.BOOLEAN);
-                    cs.registerOutParameter(7, java.sql.Types.VARCHAR);
-                    return cs;
-                }, cs -> {
-                    cs.execute();
-                    Boolean okValue = cs.getBoolean(6);
-                    String message = cs.getString(7);
-                    if (okValue == null || !okValue) {
-                        throw new RuntimeException(message != null ? message : "No se pudo actualizar disponibilidad");
-                    }
-                    return okValue;
-                });
+                long t0 = System.currentTimeMillis();
+
+                Map<String, Object> row = jdbcTemplate.queryForMap(
+                        upsertFnSql,
+                        userId,
+                        resolvedPeriodoId,
+                        diaSemana,
+                        slot.getFranjaId(),
+                        estado
+                );
+
+                Boolean ok = (Boolean) row.get("ok");
+                String message = (String) row.get("message");
+
+                logger.info("FN {} respuesta ok={} message={} ({} ms)",
+                        FN_UPSERT, ok, message, (System.currentTimeMillis() - t0));
+
                 if (ok == null || !ok) {
-                    throw new RuntimeException("No se pudo actualizar disponibilidad");
+                    throw new RuntimeException(message != null ? message : "No se pudo actualizar disponibilidad");
                 }
+
+                updated += 1;
+
             } catch (DataAccessException ex) {
                 Throwable root = ex.getRootCause();
                 if (root instanceof java.sql.SQLException sqlEx) {
-                    logger.error("SQLState={} Code={} Message={}",
+                    logger.error("Fallo SQL (DataAccess). SQLState={} Code={} Message={} | SQL={}",
                             sqlEx.getSQLState(),
                             sqlEx.getErrorCode(),
-                            sqlEx.getMessage());
+                            sqlEx.getMessage(),
+                            upsertFnSql,
+                            ex);
                 } else {
-                    logger.error("SQL root cause no disponible. ExceptionType={} Message={}",
+                    logger.error("Fallo DataAccess sin SQL root. Type={} Message={} | SQL={}",
                             ex.getClass().getName(),
-                            ex.getMessage());
+                            ex.getMessage(),
+                            upsertFnSql,
+                            ex);
                 }
-                logger.error("Fallo CALL de {} con parámetros userId={}, periodoId={}, dia={}, franja={}.",
-                        SP_UPSERT,
+
+                logger.error("Params: userId={} periodoId={} dia={} franja={} estado={}",
+                        userId, resolvedPeriodoId, diaSemana, slot.getFranjaId(), estado);
+
+                throw ex;
+
+            } catch (Exception ex) {
+                logger.error("Fallo NO-DataAccess ejecutando {} | SQL={} | Params: userId={} periodoId={} dia={} franja={} estado={}",
+                        FN_UPSERT,
+                        upsertFnSql,
                         userId,
                         resolvedPeriodoId,
-                        slot.getDiaSemana(),
+                        diaSemana,
                         slot.getFranjaId(),
+                        estado,
                         ex);
                 throw ex;
             }
-            updated += 1;
         }
 
-        logger.info("SP {} total registros actualizados={}", SP_UPSERT, updated);
+        logger.info("FN {} total registros actualizados={}", FN_UPSERT, updated);
         return new AvailabilityUpdateResponse("Disponibilidad actualizada", updated);
     }
 
+    // RowMappers
     private RowMapper<AvailabilitySlotResponse> disponibilidadRowMapper() {
         return (ResultSet rs, int rowNum) -> new AvailabilitySlotResponse(
                 rs.getInt("diasemana"),
@@ -198,6 +215,7 @@ public class DocenteDisponibilidadService {
                 "SESION");
     }
 
+    // Helpers
     private List<AvailabilitySlotResponse> mergeDisponibilidadConReservas(
             List<AvailabilitySlotResponse> slots,
             List<AvailabilitySlotResponse> reservas) {
