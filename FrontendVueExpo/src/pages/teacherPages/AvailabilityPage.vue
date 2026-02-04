@@ -83,6 +83,14 @@ const buildPayload = (): AvailabilitySlotRequest[] => {
   return payload;
 };
 
+const resolveErrorMessage = (error: unknown) => {
+  if (typeof error === 'object' && error !== null) {
+    const err = error as { response?: { data?: { message?: string } } };
+    return err.response?.data?.message;
+  }
+  return null;
+};
+
 const saveChanges = async () => {
   if (isSaving.value) return;
   feedback.value = '';
@@ -93,12 +101,15 @@ const saveChanges = async () => {
       periodoId: periodoId.value,
       slots: buildPayload(),
     });
-    feedback.value = response.message ?? 'Disponibilidad actualizada.';
+    const updatedLabel = Number.isFinite(response.updated)
+      ? ` (${response.updated} slots)`
+      : '';
+    feedback.value = `${response.message ?? 'Disponibilidad actualizada.'}${updatedLabel}`;
     feedbackType.value = 'success';
     lastSavedAt.value = new Date().toLocaleString();
     await loadAvailability();
   } catch (error) {
-    feedback.value = 'No se pudo guardar la disponibilidad.';
+    feedback.value = resolveErrorMessage(error) ?? 'No se pudo guardar la disponibilidad.';
     feedbackType.value = 'info';
   } finally {
     isSaving.value = false;
@@ -195,6 +206,10 @@ onMounted(() => {
       </button>
     </div>
   </section>
+
+  <div v-if="feedback" class="feedback-banner" :class="{ success: feedbackType === 'success' }">
+    {{ feedback }}
+  </div>
 
   <p class="save-status" v-if="lastSavedAt">Último guardado: {{ lastSavedAt }}</p>
 
@@ -337,6 +352,22 @@ onMounted(() => {
 .header-actions {
   display: flex;
   gap: 8px;
+}
+
+.feedback-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  font-size: 12px;
+  color: #1f2937;
+}
+
+.feedback-banner.success {
+  background: #e7f7ee;
+  border-color: #b7e4c7;
+  color: #0f5132;
 }
 
 .save-status {
