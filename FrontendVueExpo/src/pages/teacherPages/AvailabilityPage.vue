@@ -33,6 +33,7 @@ const lastSavedAt = ref<string | null>(null);
 const periodoId = ref<number | null>(null);
 const franjas = ref<FranjaHorarioDto[]>([]);
 const slotStatus = ref<Record<string, AvailabilityStatus>>({});
+const initialSlotStatus = ref<Record<string, AvailabilityStatus>>({});
 
 const buildKey = (diaSemana: number, franjaId: number) => `${diaSemana}-${franjaId}`;
 
@@ -128,7 +129,12 @@ const selectDay = (day: string) => {
   franjas.value.forEach((franja) => {
     const key = buildKey(diaSemana, franja.franjaId);
     if (updated[key] !== 'SESION') {
-      updated[key] = shouldSelect ? 'DISPONIBLE' : 'NO_DISPONIBLE';
+      if (shouldSelect) {
+        updated[key] = 'DISPONIBLE';
+      } else {
+        const initialStatus = initialSlotStatus.value[key];
+        updated[key] = initialStatus === 'DISPONIBLE' ? 'DISPONIBLE' : 'NO_DISPONIBLE';
+      }
     }
   });
   slotStatus.value = updated;
@@ -185,6 +191,7 @@ const loadAvailability = async () => {
       updated[buildKey(slot.diaSemana, slot.franjaId)] = slot.status;
     });
     slotStatus.value = updated;
+    initialSlotStatus.value = { ...updated };
   } catch (error) {
     feedback.value = 'No se pudo cargar la disponibilidad.';
     feedbackType.value = 'info';

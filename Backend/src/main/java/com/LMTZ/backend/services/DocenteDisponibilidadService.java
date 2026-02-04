@@ -108,6 +108,7 @@ public class DocenteDisponibilidadService {
         SimpleJdbcCall upsertCall = new SimpleJdbcCall(jdbcTemplate)
                 .withSchemaName(SCHEMA_NAME)
                 .withProcedureName(SP_UPSERT)
+                .withoutProcedureColumnMetaDataAccess()
                 .declareParameters(
                         new SqlParameter("p_idusuario", java.sql.Types.INTEGER),
                         new SqlParameter("p_idperiodo", java.sql.Types.INTEGER),
