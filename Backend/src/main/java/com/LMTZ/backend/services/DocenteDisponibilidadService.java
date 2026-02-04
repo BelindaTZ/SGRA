@@ -17,6 +17,7 @@ import org.springframework.jdbc.core.SqlParameter;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -118,18 +119,7 @@ public class DocenteDisponibilidadService {
                         new SqlParameter("p_estado", java.sql.Types.BOOLEAN),
                         new SqlOutParameter("o_ok", java.sql.Types.BOOLEAN),
                         new SqlOutParameter("o_message", java.sql.Types.VARCHAR));
-        SimpleJdbcCall upsertFunctionCall = new SimpleJdbcCall(jdbcTemplate)
-                .withSchemaName(SCHEMA_NAME)
-                .withFunctionName(SP_UPSERT)
-                .withoutProcedureColumnMetaDataAccess()
-                .declareParameters(
-                        new SqlParameter("p_idusuario", java.sql.Types.INTEGER),
-                        new SqlParameter("p_idperiodo", java.sql.Types.INTEGER),
-                        new SqlParameter("p_diasemana", java.sql.Types.SMALLINT),
-                        new SqlParameter("p_idfranjahorario", java.sql.Types.INTEGER),
-                        new SqlParameter("p_estado", java.sql.Types.BOOLEAN),
-                        new SqlOutParameter("o_ok", java.sql.Types.BOOLEAN),
-                        new SqlOutParameter("o_message", java.sql.Types.VARCHAR));
+        String upsertFunctionSql = "SELECT * FROM " + SCHEMA_NAME + "." + SP_UPSERT + "(?, ?, ?, ?, ?)";
         for (AvailabilitySlotRequest slot : slots) {
             if (slot == null || slot.getDiaSemana() == null || slot.getFranjaId() == null) {
                 continue;
@@ -159,8 +149,18 @@ public class DocenteDisponibilidadService {
             try {
                 result = upsertCall.execute(params);
             } catch (DataAccessException ex) {
-                logger.warn("Fallo CALL de {}, intentando como función.", SP_UPSERT, ex);
-                result = upsertFunctionCall.execute(params);
+                logger.warn("Fallo CALL de {}, intentando SELECT como función.", SP_UPSERT, ex);
+                try {
+                    result = jdbcTemplate.queryForMap(
+                            upsertFunctionSql,
+                            userId,
+                            resolvedPeriodoId,
+                            slot.getDiaSemana(),
+                            slot.getFranjaId(),
+                            estado);
+                } catch (EmptyResultDataAccessException empty) {
+                    throw new RuntimeException("No se pudo actualizar disponibilidad");
+                }
             }
             Object okValue = result.get("o_ok");
             Boolean ok = okValue instanceof Boolean ? (Boolean) okValue : null;
