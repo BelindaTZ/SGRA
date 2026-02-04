@@ -4,7 +4,7 @@ Este módulo agrega endpoints y procedimientos almacenados para gestionar la dis
 
 ## Procedimientos almacenados
 
-> **Esquema**: los SPs se crean en `sgra`, pero las tablas del DDL están en `public`. Para evitar ambigüedad se referencian como `public.tabla`.
+> **Esquema**: los SPs se crean en `sgra`. Con `currentSchema=sgra`, las tablas se consultan desde `sgra` (sin prefijo). Si tus tablas están en `public`, ajusta el `search_path` o agrega el prefijo `public.`.
 
 ### 1) Listar franjas horarias
 
@@ -17,7 +17,7 @@ BEGIN
     SELECT idfranjahoraria,
            horainicio,
            horariofin
-      FROM public.tbfranjashorarias
+      FROM tbfranjashorarias
      WHERE estado = true
      ORDER BY horainicio;
 END;
@@ -41,7 +41,7 @@ DECLARE
 BEGIN
   SELECT iddocente
     INTO v_iddocente
-    FROM public.tbdocentes
+    FROM tbdocentes
    WHERE idusuario = p_idusuario
      AND estado = true;
 
@@ -52,12 +52,12 @@ BEGIN
   IF p_idperiodo IS NOT NULL THEN
     SELECT idperiodo, periodo
       INTO o_idperiodo, o_periodo
-      FROM public.tbperiodos
+      FROM tbperiodos
      WHERE idperiodo = p_idperiodo;
   ELSE
     SELECT idperiodo, periodo
       INTO o_idperiodo, o_periodo
-      FROM public.tbperiodos
+      FROM tbperiodos
      WHERE estado = true
      ORDER BY fechainicio DESC
      LIMIT 1;
@@ -71,7 +71,7 @@ BEGIN
     SELECT diasemana,
            idfranjahorario,
            estado
-      FROM public.tbdisponibilidaddocente
+      FROM tbdisponibilidaddocente
      WHERE iddocente = v_iddocente
        AND idperiodo = o_idperiodo
      ORDER BY diasemana, idfranjahorario;
@@ -103,7 +103,7 @@ BEGIN
 
   SELECT iddocente
     INTO v_iddocente
-    FROM public.tbdocentes
+    FROM tbdocentes
    WHERE idusuario = p_idusuario
      AND estado = true;
 
@@ -117,7 +117,7 @@ BEGIN
   ELSE
     SELECT idperiodo
       INTO v_idperiodo
-      FROM public.tbperiodos
+      FROM tbperiodos
      WHERE estado = true
      ORDER BY fechainicio DESC
      LIMIT 1;
@@ -130,21 +130,21 @@ BEGIN
 
   SELECT COUNT(1)
     INTO v_exist
-    FROM public.tbdisponibilidaddocente
+    FROM tbdisponibilidaddocente
    WHERE iddocente = v_iddocente
      AND idperiodo = v_idperiodo
      AND diasemana = p_diasemana
      AND idfranjahorario = p_idfranjahorario;
 
   IF v_exist > 0 THEN
-    UPDATE public.tbdisponibilidaddocente
+    UPDATE tbdisponibilidaddocente
        SET estado = p_estado
      WHERE iddocente = v_iddocente
        AND idperiodo = v_idperiodo
        AND diasemana = p_diasemana
        AND idfranjahorario = p_idfranjahorario;
   ELSE
-    INSERT INTO public.tbdisponibilidaddocente (
+    INSERT INTO tbdisponibilidaddocente (
       diasemana,
       estado,
       idperiodo,
@@ -165,6 +165,68 @@ $$;
 ```
 
 > **Convención de días:** en el frontend se usa `1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb`. Ajusta si tu data histórica usa otra codificación.
+
+### 4) Reservas por horarios de clase / sesiones programadas
+
+```sql
+CREATE OR REPLACE PROCEDURE sgra.sp_docente_reservas_list(
+  IN p_idusuario INTEGER,
+  IN p_idperiodo INTEGER,
+  OUT o_cursor REFCURSOR
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_iddocente INTEGER;
+  v_idperiodo INTEGER;
+BEGIN
+  SELECT iddocente
+    INTO v_iddocente
+    FROM tbdocentes
+   WHERE idusuario = p_idusuario
+     AND estado = true;
+
+  IF v_iddocente IS NULL THEN
+    RAISE EXCEPTION 'Docente no encontrado para el usuario %', p_idusuario;
+  END IF;
+
+  IF p_idperiodo IS NOT NULL THEN
+    v_idperiodo := p_idperiodo;
+  ELSE
+    SELECT idperiodo
+      INTO v_idperiodo
+      FROM tbperiodos
+     WHERE estado = true
+     ORDER BY fechainicio DESC
+     LIMIT 1;
+  END IF;
+
+  IF v_idperiodo IS NULL THEN
+    RAISE EXCEPTION 'No existe período activo o válido';
+  END IF;
+
+  OPEN o_cursor FOR
+    SELECT hc.dia AS diasemana,
+           hc.idfranjahorario
+      FROM tbhorarioclases hc
+      JOIN tbclases c ON c.idclase = hc.idclases
+     WHERE hc.estado = true
+       AND c.iddocente = v_iddocente
+       AND hc.idperiodo = v_idperiodo
+    UNION
+    SELECT sr.diasolicitado AS diasemana,
+           sr.idfranjahoraria AS idfranjahorario
+      FROM tbsolicitudesrefuerzos sr
+      JOIN tbestadossolicitudesrefuerzos es
+        ON es.idestadosolicitudrefuerzo = sr.idestadosolicitudrefuerzo
+     WHERE sr.iddocente = v_iddocente
+       AND sr.idperiodo = v_idperiodo
+       AND es.nombreestado ILIKE 'PROGRAM%';
+END;
+$$;
+```
+
+> **Nota**: Ajusta el filtro de `nombreestado` si tus estados usan otra etiqueta (ej. `ACEPTADA`, `PROGRAMADA`). Si no existe `tbestadossolicitudesrefuerzos`, elimina el bloque `tbsolicitudesrefuerzos`.
 
 ## Endpoints
 
@@ -243,7 +305,7 @@ curl -X GET "http://localhost:8080/api/docente/disponibilidad?periodoId=1" \
 
 ```sql
 SELECT *
-  FROM public.tbdisponibilidaddocente
+  FROM tbdisponibilidaddocente
  WHERE idperiodo = 1
  ORDER BY iddocente, diasemana, idfranjahorario;
 ```
@@ -251,4 +313,4 @@ SELECT *
 ## Diagnóstico previo (por qué se veía vacío)
 
 - El backend anterior leía `userId` desde el header y no desde el `SecurityContext`, lo que podía fallar si el filtro JWT no estaba aportando ese dato al contexto.
-- Los SPs estaban definidos sin prefijo de esquema y la conexión usa `currentSchema=sgra`; si las tablas están en `public`, las consultas en los SPs no encontraban datos. Por eso se ajustaron a `public.*`.
+- Los SPs deben apuntar al esquema real (`sgra` o `public`). Si hay mismatch de esquema, la consulta de franjas devuelve cero filas y el grid queda vacío.

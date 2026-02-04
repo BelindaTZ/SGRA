@@ -7,6 +7,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +35,7 @@ public class DocenteDisponibilidadService {
     private static final String SCHEMA_NAME = "sgra";
     private static final String SP_LIST = "sp_docente_disponibilidad_list";
     private static final String SP_FRANJAS = "sp_franjas_horarias_list";
+    private static final String SP_RESERVAS = "sp_docente_reservas_list";
     private static final String SP_UPSERT = "sp_docente_disponibilidad_upsert";
 
     private final JdbcTemplate jdbcTemplate;
@@ -57,6 +59,14 @@ public class DocenteDisponibilidadService {
                 .declareParameters(
                         new SqlOutParameter("o_cursor", Types.REF_CURSOR, franjaRowMapper()));
 
+        SimpleJdbcCall reservasCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName(SCHEMA_NAME)
+                .withProcedureName(SP_RESERVAS)
+                .declareParameters(
+                        new SqlParameter("p_idusuario", Types.INTEGER),
+                        new SqlParameter("p_idperiodo", Types.INTEGER),
+                        new SqlOutParameter("o_cursor", Types.REF_CURSOR, reservaRowMapper()));
+
         logger.info("Ejecutando SP {} para userId={} periodoId={}", SP_LIST, userId, periodoId);
         Map<String, Object> listResult = listCall.execute(userId, periodoId);
         Integer resolvedPeriodoId = (Integer) listResult.get("o_idperiodo");
@@ -71,7 +81,15 @@ public class DocenteDisponibilidadService {
         List<FranjaHorarioDto> franjas = (List<FranjaHorarioDto>) franjaResult.get("o_cursor");
         logger.info("SP {} retornó {} registros", SP_FRANJAS, franjas != null ? franjas.size() : 0);
 
-        return new AvailabilityResponse(resolvedPeriodoId, periodoNombre, franjas, slots);
+        logger.info("Ejecutando SP {} para userId={} periodoId={}", SP_RESERVAS, userId, periodoId);
+        Map<String, Object> reservasResult = reservasCall.execute(userId, periodoId);
+        @SuppressWarnings("unchecked")
+        List<AvailabilitySlotResponse> reservas = (List<AvailabilitySlotResponse>) reservasResult.get("o_cursor");
+        logger.info("SP {} retornó {} registros", SP_RESERVAS, reservas != null ? reservas.size() : 0);
+
+        List<AvailabilitySlotResponse> mergedSlots = mergeDisponibilidadConReservas(slots, reservas);
+
+        return new AvailabilityResponse(resolvedPeriodoId, periodoNombre, franjas, mergedSlots);
     }
 
     @Transactional
@@ -149,6 +167,34 @@ public class DocenteDisponibilidadService {
                 rs.getInt("idfranjahoraria"),
                 formatTime(toLocalTime(rs.getTime("horainicio"))),
                 formatTime(toLocalTime(rs.getTime("horariofin"))));
+    }
+
+    private RowMapper<AvailabilitySlotResponse> reservaRowMapper() {
+        return (ResultSet rs, int rowNum) -> new AvailabilitySlotResponse(
+                rs.getInt("diasemana"),
+                rs.getInt("idfranjahorario"),
+                "SESION");
+    }
+
+    private List<AvailabilitySlotResponse> mergeDisponibilidadConReservas(
+            List<AvailabilitySlotResponse> slots,
+            List<AvailabilitySlotResponse> reservas) {
+        Map<String, AvailabilitySlotResponse> merged = new LinkedHashMap<>();
+        if (slots != null) {
+            for (AvailabilitySlotResponse slot : slots) {
+                merged.put(key(slot), slot);
+            }
+        }
+        if (reservas != null) {
+            for (AvailabilitySlotResponse reserva : reservas) {
+                merged.put(key(reserva), reserva);
+            }
+        }
+        return List.copyOf(merged.values());
+    }
+
+    private String key(AvailabilitySlotResponse slot) {
+        return slot.getDiaSemana() + ":" + slot.getFranjaId();
     }
 
     private LocalTime toLocalTime(java.sql.Time time) {
