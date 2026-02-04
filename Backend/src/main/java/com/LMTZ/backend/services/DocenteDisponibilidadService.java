@@ -65,13 +65,18 @@ public class DocenteDisponibilidadService {
         List<FranjaHorarioDto> franjas = jdbcTemplate.query(franjasSql, franjaRowMapper());
         logger.info("FN {} retornó {} registros", FN_FRANJAS, franjas != null ? franjas.size() : 0);
 
-        logger.info("Ejecutando FN {} para userId={} periodoId={}", FN_RESERVAS, userId, resolvedPeriodoId);
-        List<AvailabilitySlotResponse> reservas = jdbcTemplate.query(
-                reservasSql,
-                reservaRowMapper(),
-                userId,
-                resolvedPeriodoId);
-        logger.info("FN {} retornó {} registros", FN_RESERVAS, reservas != null ? reservas.size() : 0);
+        List<AvailabilitySlotResponse> reservas = List.of();
+        try {
+            logger.info("Ejecutando FN {} para userId={} periodoId={}", FN_RESERVAS, userId, resolvedPeriodoId);
+            reservas = jdbcTemplate.query(
+                    reservasSql,
+                    reservaRowMapper(),
+                    userId,
+                    resolvedPeriodoId);
+            logger.info("FN {} retornó {} registros", FN_RESERVAS, reservas != null ? reservas.size() : 0);
+        } catch (Exception ex) {
+            logger.warn("No se pudo obtener reservas para docente. Continuando sin reservas.", ex);
+        }
 
         List<AvailabilitySlotResponse> mergedSlots = mergeDisponibilidadConReservas(slots, reservas);
 
