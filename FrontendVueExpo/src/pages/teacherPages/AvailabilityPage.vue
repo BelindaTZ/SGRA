@@ -117,13 +117,18 @@ const saveChanges = async () => {
 };
 
 const selectDay = (day: string) => {
-  selectedDay.value = day;
   const diaSemana = getDayValue(day);
+  const hasUnavailable = franjas.value.some((franja) => {
+    const status = slotStatus.value[buildKey(diaSemana, franja.franjaId)] ?? 'NO_DISPONIBLE';
+    return status === 'NO_DISPONIBLE';
+  });
+  const shouldSelect = selectedDay.value !== day || hasUnavailable;
+  selectedDay.value = day;
   const updated: Record<string, AvailabilityStatus> = { ...slotStatus.value };
   franjas.value.forEach((franja) => {
     const key = buildKey(diaSemana, franja.franjaId);
     if (updated[key] !== 'SESION') {
-      updated[key] = 'DISPONIBLE';
+      updated[key] = shouldSelect ? 'DISPONIBLE' : 'NO_DISPONIBLE';
     }
   });
   slotStatus.value = updated;

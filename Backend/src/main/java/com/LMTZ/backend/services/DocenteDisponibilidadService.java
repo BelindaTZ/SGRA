@@ -12,6 +12,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.SqlOutParameter;
+import org.springframework.jdbc.core.SqlParameter;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.simple.SimpleJdbcCall;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -97,11 +101,21 @@ public class DocenteDisponibilidadService {
             return new AvailabilityUpdateResponse("No se enviaron cambios", 0);
         }
 
-        String upsertSql = "{ call " + SCHEMA_NAME + "." + SP_UPSERT + "(?, ?, ?, ?, ?, ?, ?) }";
         Integer resolvedPeriodoId = resolvePeriodoId(periodoId);
         logger.info("Periodo resuelto para upsert: {}", resolvedPeriodoId);
 
         int updated = 0;
+        SimpleJdbcCall upsertCall = new SimpleJdbcCall(jdbcTemplate)
+                .withSchemaName(SCHEMA_NAME)
+                .withProcedureName(SP_UPSERT)
+                .declareParameters(
+                        new SqlParameter("p_idusuario", java.sql.Types.INTEGER),
+                        new SqlParameter("p_idperiodo", java.sql.Types.INTEGER),
+                        new SqlParameter("p_diasemana", java.sql.Types.SMALLINT),
+                        new SqlParameter("p_idfranjahorario", java.sql.Types.INTEGER),
+                        new SqlParameter("p_estado", java.sql.Types.BOOLEAN),
+                        new SqlOutParameter("o_ok", java.sql.Types.BOOLEAN),
+                        new SqlOutParameter("o_message", java.sql.Types.VARCHAR));
         for (AvailabilitySlotRequest slot : slots) {
             if (slot == null || slot.getDiaSemana() == null || slot.getFranjaId() == null) {
                 continue;
@@ -121,32 +135,19 @@ public class DocenteDisponibilidadService {
                     slot.getDiaSemana(),
                     slot.getFranjaId(),
                     estado);
-            Boolean ok = jdbcTemplate.execute((org.springframework.jdbc.core.CallableStatementCreator) con -> {
-                var cs = con.prepareCall(upsertSql);
-                cs.setInt(1, userId);
-                if (resolvedPeriodoId != null) {
-                    cs.setInt(2, resolvedPeriodoId);
-                } else {
-                    cs.setNull(2, java.sql.Types.INTEGER);
-                }
-                cs.setInt(3, slot.getDiaSemana());
-                cs.setInt(4, slot.getFranjaId());
-                cs.setBoolean(5, estado);
-                cs.registerOutParameter(6, java.sql.Types.BOOLEAN);
-                cs.registerOutParameter(7, java.sql.Types.VARCHAR);
-                return cs;
-            }, cs -> {
-                cs.execute();
-                Boolean okValue = cs.getBoolean(6);
-                String message = cs.getString(7);
-                if (okValue == null || !okValue) {
-                    throw new RuntimeException(message != null ? message : "No se pudo actualizar disponibilidad");
-                }
-                return okValue;
-            });
+            MapSqlParameterSource params = new MapSqlParameterSource()
+                    .addValue("p_idusuario", userId)
+                    .addValue("p_idperiodo", resolvedPeriodoId)
+                    .addValue("p_diasemana", slot.getDiaSemana())
+                    .addValue("p_idfranjahorario", slot.getFranjaId())
+                    .addValue("p_estado", estado);
+            Map<String, Object> result = upsertCall.execute(params);
+            Object okValue = result.get("o_ok");
+            Boolean ok = okValue instanceof Boolean ? (Boolean) okValue : null;
+            String message = result.get("o_message") != null ? result.get("o_message").toString() : null;
 
             if (ok == null || !ok) {
-                throw new RuntimeException("No se pudo actualizar disponibilidad");
+                throw new RuntimeException(message != null ? message : "No se pudo actualizar disponibilidad");
             }
             updated += 1;
         }
