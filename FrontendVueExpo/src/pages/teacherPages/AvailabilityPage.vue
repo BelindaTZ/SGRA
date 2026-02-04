@@ -28,6 +28,8 @@ const selectedDay = ref('Lun');
 const selectedBlock = ref(blockOptions[0]);
 const feedback = ref('');
 const feedbackType = ref<'info' | 'success'>('info');
+const isSaving = ref(false);
+const lastSavedAt = ref<string | null>(null);
 const periodoId = ref<number | null>(null);
 const franjas = ref<FranjaHorarioDto[]>([]);
 const slotStatus = ref<Record<string, AvailabilityStatus>>({});
@@ -82,6 +84,10 @@ const buildPayload = (): AvailabilitySlotRequest[] => {
 };
 
 const saveChanges = async () => {
+  if (isSaving.value) return;
+  feedback.value = '';
+  feedbackType.value = 'info';
+  isSaving.value = true;
   try {
     const response = await updateAvailability({
       periodoId: periodoId.value,
@@ -89,9 +95,13 @@ const saveChanges = async () => {
     });
     feedback.value = response.message ?? 'Disponibilidad actualizada.';
     feedbackType.value = 'success';
+    lastSavedAt.value = new Date().toLocaleString();
+    await loadAvailability();
   } catch (error) {
     feedback.value = 'No se pudo guardar la disponibilidad.';
     feedbackType.value = 'info';
+  } finally {
+    isSaving.value = false;
   }
 };
 
@@ -177,14 +187,16 @@ onMounted(() => {
       <p>Define tus horarios disponibles para sesiones de refuerzo académico.</p>
     </div>
     <div class="header-actions">
-      <button class="btn btn-outline-secondary btn-sm" type="button" @click="clearAll">
+      <button class="btn btn-outline-secondary btn-sm" type="button" @click="clearAll" :disabled="isSaving">
         Limpiar todo
       </button>
-      <button class="btn btn-success btn-sm" type="button" @click="saveChanges">
-        Guardar cambios
+      <button class="btn btn-success btn-sm" type="button" @click="saveChanges" :disabled="isSaving">
+        {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
       </button>
     </div>
   </section>
+
+  <p class="save-status" v-if="lastSavedAt">Último guardado: {{ lastSavedAt }}</p>
 
   <section class="info-card">
     <div class="info-icon">ℹ️</div>
@@ -325,6 +337,13 @@ onMounted(() => {
 .header-actions {
   display: flex;
   gap: 8px;
+}
+
+.save-status {
+  margin: 0 0 12px;
+  color: #4b5563;
+  font-size: 12px;
+  text-align: right;
 }
 
 .info-card {
