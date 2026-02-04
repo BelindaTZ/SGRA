@@ -64,6 +64,9 @@ public class DocenteDisponibilidadService {
         logger.info("Ejecutando FN {}", FN_FRANJAS);
         List<FranjaHorarioDto> franjas = jdbcTemplate.query(franjasSql, franjaRowMapper());
         logger.info("FN {} retornó {} registros", FN_FRANJAS, franjas != null ? franjas.size() : 0);
+        if (franjas == null || franjas.isEmpty()) {
+            throw new RuntimeException("No existen franjas horarias activas en la BD.");
+        }
 
         List<AvailabilitySlotResponse> reservas = List.of();
         try {
