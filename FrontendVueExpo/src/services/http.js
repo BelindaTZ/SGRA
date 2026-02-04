@@ -1,10 +1,10 @@
 import axios from 'axios';
 import { useAuthStore } from '../stores/authStore';
 
-const apiBase = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+const apiBase = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/$/, '');
 
 const http = axios.create({
-  baseURL: apiBase || '',
+  baseURL: apiBase,
   timeout: 10000,
 });
 
