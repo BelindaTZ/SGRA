@@ -1,117 +1,102 @@
 package com.LMTZ.backend.services.auth;
 
+import java.sql.Array;
+import java.sql.CallableStatement;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Types;
 import java.util.Locale;
 
-import org.springframework.jdbc.core.JdbcTemplate;
+import javax.sql.DataSource;
+
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.LMTZ.backend.dtos.AuthLoginRequest;
 import com.LMTZ.backend.dtos.AuthLoginResponse;
-import com.LMTZ.backend.entities.Access;
-import com.LMTZ.backend.entities.UsersRoles;
-import com.LMTZ.backend.repositories.IAccessRepository;
-import com.LMTZ.backend.repositories.IUserRoleRepository;
 
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-    private final IAccessRepository accessRepository;
-    private final IUserRoleRepository userRoleRepository;
-    private final PasswordEncoder passwordEncoder;
+
     private final JwtService jwtService;
-    private final JdbcTemplate jdbcTemplate;
+    private final DataSource dataSource;
 
-    private boolean cuentaActivaColumnPresent = false;
-
-    @PostConstruct
-    void init() {
-        cuentaActivaColumnPresent = checkCuentaActivaColumn();
-    }
+    private static final String CALL_SP_LOGIN = "CALL sgra.sp_login(?, ?, ?, ?, ?, ?, ?)";
 
     @Transactional(readOnly = true)
     public AuthLoginResponse login(AuthLoginRequest request) {
-        Access access = accessRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new BadCredentialsException("Credenciales inválidas"));
 
-        if (cuentaActivaColumnPresent) {
-            Boolean active = jdbcTemplate.queryForObject(
-                    "select cuenta_activa from sgra.tbaccesos where nombreusuario = ?",
-                    Boolean.class,
-                    access.getUsername());
-            if (active != null && !active) {
-                throw new AccountInactiveException("Cuenta inactiva. Contacta al administrador.");
+        try (Connection con = dataSource.getConnection();
+             CallableStatement cs = con.prepareCall(CALL_SP_LOGIN)) {
+
+            cs.setString(1, request.getUsername());
+            cs.setString(2, request.getPassword());
+
+            cs.registerOutParameter(3, Types.BOOLEAN); // ok
+            cs.registerOutParameter(4, Types.VARCHAR); // message
+            cs.registerOutParameter(5, Types.INTEGER); // idusuario
+            cs.registerOutParameter(6, Types.VARCHAR); // nombreusuario
+
+            // 👇 NO usar el overload con (int,int,String)
+            cs.registerOutParameter(7, Types.ARRAY); // roles (text[])
+
+            cs.execute();
+
+            boolean ok = cs.getBoolean(3);
+            String message = cs.getString(4);
+
+            if (!ok) {
+                if (message != null && "Cuenta inactiva".equalsIgnoreCase(message.trim())) {
+                    throw new AccountInactiveException("Cuenta inactiva");
+                }
+                throw new BadCredentialsException("Credenciales inválidas");
             }
+
+            Integer idusuario = (Integer) cs.getObject(5);
+            String nombreusuario = cs.getString(6);
+
+            String[] roles = extractRoles(cs.getObject(7));
+
+            String role = resolveRole(roles);
+            String token = jwtService.generateToken(nombreusuario, idusuario, role);
+
+            return new AuthLoginResponse(token, role, idusuario, nombreusuario);
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Error interno en autenticación", e);
         }
-
-        if (!passwordMatches(access.getPassword(), request.getPassword())) {
-            throw new BadCredentialsException("Credenciales inválidas");
-        }
-
-        String role = resolveRole(access.getUser().getUserId());
-        String token = jwtService.generateToken(access.getUsername(), access.getUser().getUserId(), role);
-
-        return new AuthLoginResponse(token, role, access.getUser().getUserId(), access.getUsername());
     }
 
-    private boolean passwordMatches(String storedPassword, String rawPassword) {
-        if (storedPassword == null || rawPassword == null) {
-            return false;
-        }
-        if (isBcryptHash(storedPassword)) {
-            return passwordEncoder.matches(rawPassword, storedPassword);
-        }
-        // Temporal: datos de prueba en texto plano; se compara directo hasta migrar a BCrypt.
-        return storedPassword.equals(rawPassword);
+    private String[] extractRoles(Object rolesObj) {
+        if (rolesObj == null) return null;
+
+        try {
+            if (rolesObj instanceof Array sqlArray) {
+                Object arr = sqlArray.getArray();
+                if (arr instanceof String[] s) return s;
+            }
+            if (rolesObj instanceof String[] s) return s;
+        } catch (Exception ignored) { }
+        return null;
     }
 
-    private boolean isBcryptHash(String password) {
-        return password.startsWith("$2a$") || password.startsWith("$2b$") || password.startsWith("$2y$");
-    }
-
-    private String resolveRole(Integer userId) {
-        UsersRoles userRole = userRoleRepository
-                .findFirstByUserId_UserIdAndStateTrueOrderByUserRolesIdAsc(userId)
-                .orElse(null);
-        if (userRole == null || userRole.getRoleId() == null || userRole.getRoleId().getRole() == null) {
-            return "STUDENT";
-        }
-        return normalizeRole(userRole.getRoleId().getRole());
+    private String resolveRole(String[] roles) {
+        if (roles == null || roles.length == 0) return "STUDENT";
+        return normalizeRole(roles[0]);
     }
 
     private String normalizeRole(String role) {
-        String normalized = role.trim().toLowerCase(Locale.ROOT);
-        if (normalized.contains("estudiante") || normalized.contains("student")) {
-            return "STUDENT";
-        }
-        if (normalized.contains("docente") || normalized.contains("teacher")) {
-            return "TEACHER";
-        }
-        if (normalized.contains("coordinador") || normalized.contains("coordinator")) {
-            return "COORDINATOR";
-        }
-        if (normalized.contains("admin")) {
-            return "ADMIN";
-        }
-        return role.trim().toUpperCase(Locale.ROOT);
-    }
+        if (role == null) return "STUDENT";
 
-    private boolean checkCuentaActivaColumn() {
-        try {
-            Integer count = jdbcTemplate.queryForObject(
-                    "select count(*) from information_schema.columns where table_schema = ? and table_name = ? and column_name = ?",
-                    Integer.class,
-                    "sgra",
-                    "tbaccesos",
-                    "cuenta_activa");
-            return count != null && count > 0;
-        } catch (Exception ex) {
-            return false;
-        }
+        String normalized = role.trim().toLowerCase(Locale.ROOT);
+        if (normalized.contains("estudiante") || normalized.contains("student")) return "STUDENT";
+        if (normalized.contains("docente") || normalized.contains("teacher")) return "TEACHER";
+        if (normalized.contains("coordinador") || normalized.contains("coordinator")) return "COORDINATOR";
+        if (normalized.contains("admin")) return "ADMIN";
+        return role.trim().toUpperCase(Locale.ROOT);
     }
 }
