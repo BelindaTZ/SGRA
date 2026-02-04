@@ -13,6 +13,7 @@ import type {
 
 const dayOptions = [
   { label: 'Sáb', value: 6 },
+  { label: 'Dom', value: 7 },
   { label: 'Lun', value: 1 },
   { label: 'Mar', value: 2 },
   { label: 'Mié', value: 3 },
@@ -20,7 +21,7 @@ const dayOptions = [
   { label: 'Vie', value: 5 },
 ];
 
-const quickDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const quickDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const blockOptions = ['Seleccionar bloque', 'Bloque Mañana', 'Bloque Tarde'];
 
 const selectedDay = ref('Lun');
@@ -96,6 +97,15 @@ const saveChanges = async () => {
 
 const selectDay = (day: string) => {
   selectedDay.value = day;
+  const diaSemana = getDayValue(day);
+  const updated: Record<string, AvailabilityStatus> = { ...slotStatus.value };
+  franjas.value.forEach((franja) => {
+    const key = buildKey(diaSemana, franja.franjaId);
+    if (updated[key] !== 'SESION') {
+      updated[key] = 'DISPONIBLE';
+    }
+  });
+  slotStatus.value = updated;
 };
 
 const selectBlock = (event: Event) => {
