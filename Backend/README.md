@@ -4,7 +4,7 @@ Este módulo agrega endpoints y procedimientos almacenados para gestionar la dis
 
 ## Procedimientos almacenados
 
-> **Esquema**: los SPs se crean en `sgra`. Con `currentSchema=sgra`, las tablas se consultan desde `sgra` (sin prefijo). Si tus tablas están en `public`, ajusta el `search_path` o agrega el prefijo `public.`.
+> **Esquema**: los SPs se crean en `sgra`. En dev usamos `currentSchema=sgra,public` para que las tablas del DDL (que están en `public`) se resuelvan sin prefijo. Si tu entorno difiere, ajusta el `search_path` o agrega el prefijo `public.`.
 
 ### 1) Listar franjas horarias
 
