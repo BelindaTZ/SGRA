@@ -236,16 +236,16 @@ BEGIN
     SELECT sr.diasolicitado AS diasemana,
            sr.idfranjahoraria AS idfranjahorario
       FROM sgra.tbsolicitudesrefuerzos sr
-      JOIN sgra.tbestadossolicitudesrefuerzos es
-        ON es.idestadosolicitudrefuerzo = sr.idestadosolicitudrefuerzo
+      JOIN sgra.tbdetallesrefuerzosprogramadas dr
+        ON dr.idsolicitudrefuerzo = sr.idsolicitudrefuerzo
      WHERE sr.iddocente = v_iddocente
        AND sr.idperiodo = v_idperiodo
-       AND es.nombreestado ILIKE 'PROGRAM%';
+       AND dr.estado = true;
 END;
 $$;
 ```
 
-> **Nota**: Ajusta el filtro de `nombreestado` si tus estados usan otra etiqueta (ej. `ACEPTADA`, `PROGRAMADA`). Si no existe `tbestadossolicitudesrefuerzos`, elimina el bloque `tbsolicitudesrefuerzos`.
+> **Nota**: Ajusta el join o el filtro si tu tabla de refuerzos programados usa otra relación distinta a `tbdetallesrefuerzosprogramadas`.
 
 ## Endpoints
 
