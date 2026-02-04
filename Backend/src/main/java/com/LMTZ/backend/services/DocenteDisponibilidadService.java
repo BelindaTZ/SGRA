@@ -102,7 +102,7 @@ public class DocenteDisponibilidadService {
         logger.info("Periodo resuelto para upsert: {}", resolvedPeriodoId);
 
         int updated = 0;
-        String upsertCallSql = "CALL " + SCHEMA_NAME + "." + SP_UPSERT + "(?, ?, ?, ?, ?)";
+        String upsertCallSql = "{ call " + SCHEMA_NAME + "." + SP_UPSERT + "(?, ?, ?, ?, ?, ?, ?) }";
         for (AvailabilitySlotRequest slot : slots) {
             if (slot == null || slot.getDiaSemana() == null || slot.getFranjaId() == null) {
                 continue;
@@ -122,16 +122,41 @@ public class DocenteDisponibilidadService {
                     slot.getDiaSemana(),
                     slot.getFranjaId(),
                     estado);
-            Map<String, Object> result;
             try {
-                result = jdbcTemplate.queryForMap(
-                        upsertCallSql,
-                        userId,
-                        resolvedPeriodoId,
-                        slot.getDiaSemana(),
-                        slot.getFranjaId(),
-                        estado);
+                Boolean ok = jdbcTemplate.execute((org.springframework.jdbc.core.CallableStatementCreator) con -> {
+                    var cs = con.prepareCall(upsertCallSql);
+                    cs.setInt(1, userId);
+                    if (resolvedPeriodoId != null) {
+                        cs.setInt(2, resolvedPeriodoId);
+                    } else {
+                        cs.setNull(2, java.sql.Types.INTEGER);
+                    }
+                    cs.setInt(3, slot.getDiaSemana());
+                    cs.setInt(4, slot.getFranjaId());
+                    cs.setBoolean(5, estado);
+                    cs.registerOutParameter(6, java.sql.Types.BOOLEAN);
+                    cs.registerOutParameter(7, java.sql.Types.VARCHAR);
+                    return cs;
+                }, cs -> {
+                    cs.execute();
+                    Boolean okValue = cs.getBoolean(6);
+                    String message = cs.getString(7);
+                    if (okValue == null || !okValue) {
+                        throw new RuntimeException(message != null ? message : "No se pudo actualizar disponibilidad");
+                    }
+                    return okValue;
+                });
+                if (ok == null || !ok) {
+                    throw new RuntimeException("No se pudo actualizar disponibilidad");
+                }
             } catch (DataAccessException ex) {
+                Throwable root = ex.getRootCause();
+                if (root instanceof java.sql.SQLException sqlEx) {
+                    logger.error("SQLState={} Code={} Message={}",
+                            sqlEx.getSQLState(),
+                            sqlEx.getErrorCode(),
+                            sqlEx.getMessage());
+                }
                 logger.error("Fallo CALL de {} con parámetros userId={}, periodoId={}, dia={}, franja={}.",
                         SP_UPSERT,
                         userId,
@@ -140,13 +165,6 @@ public class DocenteDisponibilidadService {
                         slot.getFranjaId(),
                         ex);
                 throw ex;
-            }
-            Object okValue = result.get("o_ok");
-            Boolean ok = okValue instanceof Boolean ? (Boolean) okValue : null;
-            String message = result.get("o_message") != null ? result.get("o_message").toString() : null;
-
-            if (ok == null || !ok) {
-                throw new RuntimeException(message != null ? message : "No se pudo actualizar disponibilidad");
             }
             updated += 1;
         }
