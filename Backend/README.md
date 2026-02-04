@@ -4,7 +4,7 @@ Este módulo agrega endpoints y procedimientos almacenados para gestionar la dis
 
 ## Procedimientos almacenados
 
-> **Esquema**: los SPs se crean en `sgra`. En dev usamos `currentSchema=sgra,public` para que las tablas del DDL (que están en `public`) se resuelvan sin prefijo. Si tu entorno difiere, ajusta el `search_path` o agrega el prefijo `public.`.
+> **Esquema**: los SPs se crean en `sgra` y las consultas se hacen contra `sgra.*`. Si tus tablas están en otro esquema, ajusta el `search_path` o agrega el prefijo correspondiente.
 
 ### 1) Listar franjas horarias
 
@@ -17,7 +17,7 @@ BEGIN
     SELECT idfranjahoraria,
            horainicio,
            horariofin
-      FROM tbfranjashorarias
+      FROM sgra.tbfranjashorarias
      WHERE estado = true
      ORDER BY horainicio;
 END;
@@ -41,7 +41,7 @@ DECLARE
 BEGIN
   SELECT iddocente
     INTO v_iddocente
-    FROM tbdocentes
+    FROM sgra.tbdocentes
    WHERE idusuario = p_idusuario
      AND estado = true;
 
@@ -52,12 +52,12 @@ BEGIN
   IF p_idperiodo IS NOT NULL THEN
     SELECT idperiodo, periodo
       INTO o_idperiodo, o_periodo
-      FROM tbperiodos
+      FROM sgra.tbperiodos
      WHERE idperiodo = p_idperiodo;
   ELSE
     SELECT idperiodo, periodo
       INTO o_idperiodo, o_periodo
-      FROM tbperiodos
+      FROM sgra.tbperiodos
      WHERE estado = true
      ORDER BY fechainicio DESC
      LIMIT 1;
@@ -71,7 +71,7 @@ BEGIN
     SELECT diasemana,
            idfranjahorario,
            estado
-      FROM tbdisponibilidaddocente
+      FROM sgra.tbdisponibilidaddocente
      WHERE iddocente = v_iddocente
        AND idperiodo = o_idperiodo
      ORDER BY diasemana, idfranjahorario;
@@ -103,7 +103,7 @@ BEGIN
 
   SELECT iddocente
     INTO v_iddocente
-    FROM tbdocentes
+    FROM sgra.tbdocentes
    WHERE idusuario = p_idusuario
      AND estado = true;
 
@@ -117,7 +117,7 @@ BEGIN
   ELSE
     SELECT idperiodo
       INTO v_idperiodo
-      FROM tbperiodos
+      FROM sgra.tbperiodos
      WHERE estado = true
      ORDER BY fechainicio DESC
      LIMIT 1;
@@ -130,21 +130,21 @@ BEGIN
 
   SELECT COUNT(1)
     INTO v_exist
-    FROM tbdisponibilidaddocente
+    FROM sgra.tbdisponibilidaddocente
    WHERE iddocente = v_iddocente
      AND idperiodo = v_idperiodo
      AND diasemana = p_diasemana
      AND idfranjahorario = p_idfranjahorario;
 
   IF v_exist > 0 THEN
-    UPDATE tbdisponibilidaddocente
+    UPDATE sgra.tbdisponibilidaddocente
        SET estado = p_estado
      WHERE iddocente = v_iddocente
        AND idperiodo = v_idperiodo
        AND diasemana = p_diasemana
        AND idfranjahorario = p_idfranjahorario;
   ELSE
-    INSERT INTO tbdisponibilidaddocente (
+    INSERT INTO sgra.tbdisponibilidaddocente (
       diasemana,
       estado,
       idperiodo,
@@ -182,7 +182,7 @@ DECLARE
 BEGIN
   SELECT iddocente
     INTO v_iddocente
-    FROM tbdocentes
+    FROM sgra.tbdocentes
    WHERE idusuario = p_idusuario
      AND estado = true;
 
@@ -195,7 +195,7 @@ BEGIN
   ELSE
     SELECT idperiodo
       INTO v_idperiodo
-      FROM tbperiodos
+      FROM sgra.tbperiodos
      WHERE estado = true
      ORDER BY fechainicio DESC
      LIMIT 1;
@@ -208,16 +208,16 @@ BEGIN
   OPEN o_cursor FOR
     SELECT hc.dia AS diasemana,
            hc.idfranjahorario
-      FROM tbhorarioclases hc
-      JOIN tbclases c ON c.idclase = hc.idclases
+      FROM sgra.tbhorarioclases hc
+      JOIN sgra.tbclases c ON c.idclase = hc.idclases
      WHERE hc.estado = true
        AND c.iddocente = v_iddocente
        AND hc.idperiodo = v_idperiodo
     UNION
     SELECT sr.diasolicitado AS diasemana,
            sr.idfranjahoraria AS idfranjahorario
-      FROM tbsolicitudesrefuerzos sr
-      JOIN tbestadossolicitudesrefuerzos es
+      FROM sgra.tbsolicitudesrefuerzos sr
+      JOIN sgra.tbestadossolicitudesrefuerzos es
         ON es.idestadosolicitudrefuerzo = sr.idestadosolicitudrefuerzo
      WHERE sr.iddocente = v_iddocente
        AND sr.idperiodo = v_idperiodo
@@ -305,7 +305,7 @@ curl -X GET "http://localhost:8080/api/docente/disponibilidad?periodoId=1" \
 
 ```sql
 SELECT *
-  FROM tbdisponibilidaddocente
+  FROM sgra.tbdisponibilidaddocente
  WHERE idperiodo = 1
  ORDER BY iddocente, diasemana, idfranjahorario;
 ```
