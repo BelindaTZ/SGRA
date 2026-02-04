@@ -156,6 +156,10 @@ public class DocenteDisponibilidadService {
                             sqlEx.getSQLState(),
                             sqlEx.getErrorCode(),
                             sqlEx.getMessage());
+                } else {
+                    logger.error("SQL root cause no disponible. ExceptionType={} Message={}",
+                            ex.getClass().getName(),
+                            ex.getMessage());
                 }
                 logger.error("Fallo CALL de {} con parámetros userId={}, periodoId={}, dia={}, franja={}.",
                         SP_UPSERT,
