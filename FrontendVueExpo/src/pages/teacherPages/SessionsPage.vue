@@ -1,6 +1,6 @@
 <template>
   <div class="placeholder">
-    <h2>Hola, esto es Reportes</h2>
+    <h2>Hola, esto es Sesiones</h2>
   </div>
 </template>
 

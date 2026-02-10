@@ -36,13 +36,12 @@ public class AuthService {
             cs.setString(1, request.getUsername());
             cs.setString(2, request.getPassword());
 
-            cs.registerOutParameter(3, Types.BOOLEAN); // ok
-            cs.registerOutParameter(4, Types.VARCHAR); // message
-            cs.registerOutParameter(5, Types.INTEGER); // idusuario
-            cs.registerOutParameter(6, Types.VARCHAR); // nombreusuario
+            cs.registerOutParameter(3, Types.BOOLEAN);
+            cs.registerOutParameter(4, Types.VARCHAR);
+            cs.registerOutParameter(5, Types.INTEGER);
+            cs.registerOutParameter(6, Types.VARCHAR);
 
-            // 👇 NO usar el overload con (int,int,String)
-            cs.registerOutParameter(7, Types.ARRAY); // roles (text[])
+            cs.registerOutParameter(7, Types.ARRAY);
 
             cs.execute();
 
